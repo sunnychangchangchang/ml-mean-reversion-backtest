@@ -29,7 +29,7 @@ The probability threshold is fixed at `0.50` rather than optimized against backt
 ## Project Structure
 
 ```text
-ml-quant-strategy/
+ml-mean-reversion-backtest/
 ├── app.py                    # Streamlit research UI
 ├── requirements.txt          # Python dependencies
 ├── README.md                 # Project overview
