@@ -324,6 +324,13 @@ def main():
                             else:
                                 st.error(T['cal_poor'].format(ece=ece))
 
+            st.subheader(T['eda_sub'])
+            st.caption(T['eda_caption'])
+            st.plotly_chart(
+                plots.plot_feature_winrate(ref_train_data, feature_cols),
+                use_container_width=True,
+            )
+
             st.subheader(T['fi_sub'])
             st.caption(T['fi_caption'].format(date=backtest_start))
             tab_fi_lr, tab_fi_xgb = st.tabs(['LR (L1)', 'XGBoost'])

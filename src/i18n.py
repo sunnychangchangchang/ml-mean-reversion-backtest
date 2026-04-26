@@ -209,6 +209,13 @@ If Brier ≈ random, the model has learned nothing.
     'cal_good':             'ECE = {ece:.4f} — Good. Threshold {ml_thr:.2f} is reasonable.',
     'cal_moderate':         'ECE = {ece:.4f} — Moderate. Proceed with caution.',
     'cal_poor':             'ECE = {ece:.4f} — Poor. Threshold needs CV-based tuning.',
+    'eda_sub':    'Feature vs Win Rate (EDA)',
+    'eda_caption': (
+        'Each bar is a quantile bin of the feature value; bar height = win rate (target=1 rate) in that bin. '
+        'Dashed line = overall base rate. '
+        'A roughly flat or monotone pattern suggests a linear relationship — LR should suffice. '
+        'A curve or reversal suggests non-linearity — XGBoost may add value.'
+    ),
     'fi_sub':               'Feature Importance',
     'fi_caption':           (
         'Logistic Regression coefficients from the reference model '
@@ -422,6 +429,13 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     'cal_good':             'ECE = {ece:.4f} — 良好。門檻 {ml_thr:.2f} 可接受。',
     'cal_moderate':         'ECE = {ece:.4f} — 一般。請謹慎解讀。',
     'cal_poor':             'ECE = {ece:.4f} — 不佳。應透過訓練期 CV 重新選擇門檻。',
+    'eda_sub':    'Feature vs 勝率（EDA）',
+    'eda_caption': (
+        '每個 bar 是 feature 值的 quantile bin；bar 高度 = 該 bin 內的勝率（target=1 比例）。'
+        '虛線 = 整體基礎勝率。'
+        '幾乎平坦或單調 → 線性關係，LR 已足夠。'
+        '有曲線或反轉 → 非線性，XGBoost 可能有額外幫助。'
+    ),
     'fi_sub':               '特徵重要性',
     'fi_caption':           (
         '以 {date} 前所有訓練資料訓練的參考模型之邏輯回歸係數。'
