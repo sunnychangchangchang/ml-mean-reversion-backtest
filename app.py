@@ -30,13 +30,13 @@ def _format_fold_table(fold_results: list) -> pd.DataFrame:
     rows = []
     for r in fold_results:
         rows.append({
-            'Fold': r['Fold'],
+            'Fold': str(r['Fold']),
             'Test Period': r['Test Period'],
             'Return': f"{r['Return']:.1%}",
             'Sharpe': f"{r['Sharpe']:.2f}",
             'Max DD': f"{r['Max DD']:.1%}",
             'Win Rate': f"{r['Win Rate']:.1%}",
-            'Trades': r['Trades'],
+            'Trades': str(r['Trades']),
         })
     return pd.DataFrame(rows)
 
