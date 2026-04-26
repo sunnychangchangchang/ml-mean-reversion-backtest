@@ -61,22 +61,22 @@ def plot_equity_curves(
 
 def plot_yearly_returns(
     raw_yearly: pd.DataFrame,
-    ml_yearly: pd.DataFrame,
+    lr_yearly: pd.DataFrame,
     spy_yearly: pd.DataFrame = None,
+    xgb_yearly: pd.DataFrame = None,
 ) -> go.Figure:
     """Grouped bar chart of calendar-year returns for all strategies."""
     fig = go.Figure()
 
-    # Collect all years; use ML returns (most complete) to determine partial years
+    all_dfs = [raw_yearly, lr_yearly, xgb_yearly, spy_yearly]
     years = set()
-    for df in [raw_yearly, ml_yearly, spy_yearly]:
+    for df in all_dfs:
         if df is not None and len(df) > 0:
             years.update(df['Year'].astype(str).tolist())
     years = sorted(years)
 
-    # Build a partial-year lookup from whichever df has the Partial column
     partial_years = set()
-    for df in [ml_yearly, raw_yearly]:
+    for df in [lr_yearly, raw_yearly]:
         if df is not None and 'Partial' in df.columns:
             partial_years = set(df.loc[df['Partial'], 'Year'].astype(str))
             break
@@ -95,7 +95,8 @@ def plot_yearly_returns(
         ))
 
     _add_bars(raw_yearly, 'Raw Strategy', 'steelblue')
-    _add_bars(ml_yearly, 'ML Strategy', 'seagreen')
+    _add_bars(lr_yearly,  'LR (L1)',      'seagreen')
+    _add_bars(xgb_yearly, 'XGBoost',      'mediumpurple')
     _add_bars(spy_yearly, 'SPY Buy & Hold', 'orange')
 
     fig.add_hline(y=0, line_color='black', line_width=1)

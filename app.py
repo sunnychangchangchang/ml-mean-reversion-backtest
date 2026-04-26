@@ -231,7 +231,7 @@ def main():
 
             st.subheader(T['yearly_sub'])
             st.plotly_chart(
-                plots.plot_yearly_returns(raw_yearly, lr_yearly, spy_yearly),
+                plots.plot_yearly_returns(raw_yearly, lr_yearly, spy_yearly, xgb_yearly=xgb_yearly),
                 use_container_width=True
             )
             if lr_yearly is not None and lr_yearly.get('Partial', pd.Series()).any():

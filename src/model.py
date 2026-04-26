@@ -65,15 +65,19 @@ def train_model(
         model.fit(X_train_scaled, y_train)
 
     elif model_type == 'xgb':
-        # Shallow trees + shrinkage to control overfitting on financial data.
-        # XGBoost is scale-invariant but we still use the scaler for a
-        # consistent interface with the LR path.
+        # Stronger regularization for small financial datasets:
+        # max_depth=2 and min_child_weight=5 prevent splits on noisy subsets;
+        # gamma=1 requires a meaningful loss reduction before each split;
+        # reg_alpha=0.1 adds L1 shrinkage on leaf weights.
         model = XGBClassifier(
-            n_estimators=300,
-            max_depth=3,
+            n_estimators=150,
+            max_depth=2,
             learning_rate=0.05,
             subsample=0.8,
             colsample_bytree=0.8,
+            min_child_weight=5,
+            gamma=1.0,
+            reg_alpha=0.1,
             eval_metric='logloss',
             random_state=42,
             verbosity=0,
