@@ -44,21 +44,33 @@ def _fmt_metric(val, fmt: str) -> str:
     return format(float(val), fmt.lstrip(':'))
 
 def _render_metrics_table(T, raw_m, lr_m, xgb_m):
-    h0, h1, h2, h3 = st.columns([3, 2, 2, 2])
-    h1.markdown('**Raw**')
-    h2.markdown('**LR (L1)**')
-    h3.markdown('**XGBoost**')
-    for suffix, key, fmt in _METRIC_DEFS:
-        c0, c1, c2, c3 = st.columns([3, 2, 2, 2])
-        with c0:
-            st.metric(
-                label=T[f'metric_label_{suffix}'],
-                value='',
-                help=T[f'metric_help_{suffix}'],
-            )
-        c1.metric(label='', value=_fmt_metric(raw_m.get(key, 0), fmt))
-        c2.metric(label='', value=_fmt_metric(lr_m.get(key, 0), fmt))
-        c3.metric(label='', value=_fmt_metric(xgb_m.get(key, 0), fmt))
+    rows = ""
+    for i, (suffix, key, fmt) in enumerate(_METRIC_DEFS):
+        label     = T[f'metric_label_{suffix}']
+        help_text = T[f'metric_help_{suffix}']
+        raw_val   = _fmt_metric(raw_m.get(key, 0), fmt)
+        lr_val    = _fmt_metric(lr_m.get(key, 0), fmt)
+        xgb_val   = _fmt_metric(xgb_m.get(key, 0), fmt)
+        bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
+        rows += (
+            f'<tr style="background:{bg}">'
+            f'<td style="padding:8px 12px;cursor:help" title="{help_text}">'
+            f'{label}&nbsp;<span style="opacity:0.45;font-size:11px">(?)</span></td>'
+            f'<td style="padding:8px 12px">{raw_val}</td>'
+            f'<td style="padding:8px 12px">{lr_val}</td>'
+            f'<td style="padding:8px 12px">{xgb_val}</td>'
+            f'</tr>'
+        )
+    st.markdown(
+        f'<table style="width:100%;border-collapse:collapse;font-size:14px">'
+        f'<thead><tr style="border-bottom:1px solid rgba(250,250,250,0.2)">'
+        f'<th style="text-align:left;padding:8px 12px;font-weight:600">Metric</th>'
+        f'<th style="text-align:left;padding:8px 12px;font-weight:600">Raw</th>'
+        f'<th style="text-align:left;padding:8px 12px;font-weight:600">LR (L1)</th>'
+        f'<th style="text-align:left;padding:8px 12px;font-weight:600">XGBoost</th>'
+        f'</tr></thead><tbody>{rows}</tbody></table>',
+        unsafe_allow_html=True,
+    )
 
 def _format_fold_table(fold_results: list) -> pd.DataFrame:
     rows = []
