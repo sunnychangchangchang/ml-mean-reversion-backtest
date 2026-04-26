@@ -4,7 +4,6 @@ Creates charts for equity curves, drawdowns, and trade distributions.
 """
 
 import pandas as pd
-import numpy as np
 import plotly.graph_objects as go
 
 
@@ -114,16 +113,7 @@ def plot_drawdowns(
     equity_df: pd.DataFrame,
     strategy_name: str = 'Strategy'
 ) -> go.Figure:
-    """
-    Plot drawdown chart.
-    
-    Args:
-        equity_df: DataFrame with equity curve
-        strategy_name: Name for the strategy
-    
-    Returns:
-        Plotly figure
-    """
+    """Plot drawdown (%) over time from the equity curve."""
     if len(equity_df) == 0:
         fig = go.Figure()
         fig.update_layout(title=f'{strategy_name} - No Data')
@@ -161,16 +151,7 @@ def plot_trade_distribution(
     trades_df: pd.DataFrame,
     strategy_name: str = 'Strategy'
 ) -> go.Figure:
-    """
-    Plot histogram of trade returns.
-    
-    Args:
-        trades_df: DataFrame with trade log
-        strategy_name: Name for the strategy
-    
-    Returns:
-        Plotly figure
-    """
+    """Plot histogram of per-trade P&L in dollars."""
     if len(trades_df) == 0:
         fig = go.Figure()
         fig.update_layout(title=f'{strategy_name} - No Trades')

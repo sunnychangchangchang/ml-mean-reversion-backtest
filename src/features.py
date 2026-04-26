@@ -54,7 +54,7 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
         lambda x: calculate_rsi(x, window=14)
     )
 
-    # Moving averages: MA20, MA50, MA200
+    # Moving averages: MA20, MA200
     ma20 = df.groupby('ticker')['Close'].transform(
         lambda x: x.rolling(window=20, min_periods=20).mean()
     )
@@ -68,16 +68,7 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def calculate_rsi(series: pd.Series, window: int = 14) -> pd.Series:
-    """
-    Calculate Relative Strength Index.
-    
-    Args:
-        series: Price series
-        window: RSI window period
-    
-    Returns:
-        RSI values
-    """
+    """Calculate RSI using Wilder's EMA smoothing (com = window - 1)."""
     delta = series.diff()
     gains = delta.clip(lower=0)
     losses = (-delta).clip(lower=0)
@@ -93,20 +84,7 @@ def calculate_rsi(series: pd.Series, window: int = 14) -> pd.Series:
 
 
 def create_target(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Create target variable for ML model.
-    
-    Target: y = 1 if Close[t+1] > Open[t+1], else 0
-    
-    This represents whether the next day's close is higher than its open,
-    i.e., whether the stock had a positive intraday return.
-    
-    Args:
-        df: DataFrame with price data
-    
-    Returns:
-        DataFrame with added target column
-    """
+    """Add target column: 1 if Close[t+1] > Open[t+1], else 0. Final row per ticker stays NaN."""
     df = df.copy()
     
     # Calculate next day's open and close
@@ -128,12 +106,7 @@ def create_target(df: pd.DataFrame) -> pd.DataFrame:
 
 
 def get_feature_columns() -> List[str]:
-    """
-    Return list of feature column names.
-    
-    Returns:
-        List of feature column names
-    """
+    """Return the ML feature column names (excludes return_5d, which is the signal trigger)."""
     # return_5d is intentionally excluded: it is the signal trigger itself.
     # Keeping it as a feature would let the ML model learn the signal condition
     # rather than independently assessing market context, making the two

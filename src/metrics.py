@@ -8,7 +8,6 @@ import numpy as np
 from typing import Dict, Optional
 
 
-
 def compare_strategies(
     raw_metrics: Dict,
     lr_metrics: Dict,

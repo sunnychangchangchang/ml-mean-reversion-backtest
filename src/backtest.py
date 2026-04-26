@@ -35,17 +35,7 @@ def generate_signals(
 
 
 def calculate_intraday_return(df: pd.DataFrame) -> pd.DataFrame:
-    """
-    Calculate intraday return: Close[t+1] / Open[t+1] - 1
-    
-    This is the return from entering at Open[t+1] and exiting at Close[t+1].
-    
-    Args:
-        df: DataFrame with price data
-    
-    Returns:
-        DataFrame with intraday_return column
-    """
+    """Add intraday_return column: Close[t+1] / Open[t+1] - 1 (entry Open, exit Close)."""
     df = df.copy()
     
     # Get next day's open and close
