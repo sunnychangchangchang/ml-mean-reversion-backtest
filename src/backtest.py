@@ -156,8 +156,8 @@ def run_backtest(
             # Position sized off start-of-day capital, not running capital
             position_value = start_of_day_capital * weight
             
-            # Apply transaction costs (entry and exit)
-            net_return = intraday_ret - transaction_cost
+            # Apply transaction costs (entry + exit = round-trip)
+            net_return = intraday_ret - 2 * transaction_cost
             
             # Calculate P&L
             pnl = position_value * net_return
