@@ -38,6 +38,8 @@ _EN = {
         '- Transaction Cost: **{tc:.1%}** round-trip  \n'
         '- Test Window: **{tw} months** per fold  \n'
         '- Min Training Period: **{mty} years** — sufficient for LR to converge  \n'
+        '- Max Positions: **{mp}** — risk constraint  \n'
+        '- Max Weight: **{mw:.0%}** — risk constraint  \n'
         '- Initial Capital: **${ic:,.0f}** (display only)'
     ),
 

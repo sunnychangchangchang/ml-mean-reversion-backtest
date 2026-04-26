@@ -7,6 +7,15 @@ import pandas as pd
 from datetime import datetime
 
 from src import data, features, model, metrics, plots, walkforward, i18n
+from src.constants import (
+    INITIAL_CAPITAL,
+    MAX_POSITIONS,
+    MAX_WEIGHT,
+    ML_PROB_THRESHOLD,
+    TRANSACTION_COST,
+    TEST_WINDOW_MONTHS,
+    MIN_TRAIN_YEARS,
+)
 
 
 st.set_page_config(
@@ -14,13 +23,6 @@ st.set_page_config(
     page_icon="📈",
     layout="wide"
 )
-
-# ── Fixed parameters ───────────────────────────────────────────────────────────
-INITIAL_CAPITAL    = 100_000
-ML_PROB_THRESHOLD  = 0.50
-TRANSACTION_COST   = 0.001
-TEST_WINDOW_MONTHS = 12
-MIN_TRAIN_YEARS    = 3        # sufficient for LR with ~4k samples; not a tunable parameter
 
 
 def _format_fold_table(fold_results: list) -> pd.DataFrame:
@@ -79,13 +81,6 @@ def main():
     ) / 100
     st.sidebar.caption(T['threshold_caption'])
 
-    st.sidebar.subheader(T['portfolio_sub'])
-    max_positions = st.sidebar.slider(T['max_pos_label'], 1, 5, 3)
-    max_weight = st.sidebar.slider(
-        T['max_weight_label'],
-        min_value=10, max_value=100, value=50, step=10, format="%d%%"
-    ) / 100
-
     st.sidebar.subheader(T['benchmark_sub'])
     risk_free_rate = st.sidebar.slider(
         T['rfr_label'],
@@ -101,6 +96,8 @@ def main():
         tw=TEST_WINDOW_MONTHS,
         mty=MIN_TRAIN_YEARS,
         ic=INITIAL_CAPITAL,
+        mp=MAX_POSITIONS,
+        mw=MAX_WEIGHT,
     ))
 
     # ── Main page ──────────────────────────────────────────────────────────────
@@ -144,8 +141,8 @@ def main():
             wf_kwargs = dict(
                 feature_cols=feature_cols,
                 initial_capital=INITIAL_CAPITAL,
-                max_positions=max_positions,
-                max_weight=max_weight,
+                max_positions=MAX_POSITIONS,
+                max_weight=MAX_WEIGHT,
                 transaction_cost=TRANSACTION_COST,
                 return_threshold=return_threshold,
                 min_train_years=MIN_TRAIN_YEARS,
