@@ -25,6 +25,41 @@ st.set_page_config(
 )
 
 
+_METRIC_DEFS = [
+    ('cumreturn',    'cumulative_return',  ':.2%'),
+    ('annreturn',    'annualized_return',  ':.2%'),
+    ('vol',          'volatility',         ':.2%'),
+    ('sharpe',       'sharpe_ratio',       ':.2f'),
+    ('active_sharpe','active_sharpe',      ':.2f'),
+    ('maxdd',        'max_drawdown',       ':.2%'),
+    ('winrate',      'win_rate',           ':.1%'),
+    ('trades',       'trade_count',        ':d'),
+    ('avgtrade',     'avg_trade_return',   ':.2%'),
+    ('exposure',     'exposure_ratio',     ':.1%'),
+]
+
+def _fmt_metric(val, fmt: str) -> str:
+    if fmt == ':d':
+        return str(int(val))
+    return format(float(val), fmt.lstrip(':'))
+
+def _render_metrics_table(T, raw_m, lr_m, xgb_m):
+    h0, h1, h2, h3 = st.columns([3, 2, 2, 2])
+    h1.markdown('**Raw**')
+    h2.markdown('**LR (L1)**')
+    h3.markdown('**XGBoost**')
+    for suffix, key, fmt in _METRIC_DEFS:
+        c0, c1, c2, c3 = st.columns([3, 2, 2, 2])
+        with c0:
+            st.metric(
+                label=T[f'metric_label_{suffix}'],
+                value='',
+                help=T[f'metric_help_{suffix}'],
+            )
+        c1.metric(label='', value=_fmt_metric(raw_m.get(key, 0), fmt))
+        c2.metric(label='', value=_fmt_metric(lr_m.get(key, 0), fmt))
+        c3.metric(label='', value=_fmt_metric(xgb_m.get(key, 0), fmt))
+
 def _format_fold_table(fold_results: list) -> pd.DataFrame:
     rows = []
     for r in fold_results:
@@ -214,10 +249,7 @@ def main():
             st.divider()
             st.header(T['metrics_hdr'])
             st.caption(T['metrics_caption'])
-            st.dataframe(
-                metrics.compare_strategies(raw_metrics_dict, lr_metrics_dict, xgb_metrics_dict),
-                use_container_width=True, hide_index=True
-            )
+            _render_metrics_table(T, raw_metrics_dict, lr_metrics_dict, xgb_metrics_dict)
 
             st.divider()
             st.header(T['viz_hdr'])
