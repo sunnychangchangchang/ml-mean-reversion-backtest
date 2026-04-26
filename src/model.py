@@ -7,11 +7,9 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
-from sklearn.calibration import calibration_curve
-from sklearn.metrics import brier_score_loss
 from xgboost import XGBClassifier
 import logging
-from typing import List, Tuple, Dict, Optional, Union
+from typing import List, Tuple, Union
 
 logger = logging.getLogger(__name__)
 
@@ -141,55 +139,3 @@ def get_feature_importance(
         return importance.sort_values('importance', ascending=False)
 
 
-def check_calibration_oos(
-    proba: np.ndarray,
-    actual: np.ndarray,
-    n_bins: int = 10,
-) -> Optional[Dict]:
-    """
-    Check calibration using out-of-sample walk-forward predictions.
-    proba / actual are collected across all test folds — fully OOS.
-    """
-    if len(proba) == 0:
-        return None
-    frac_pos, mean_pred = calibration_curve(actual, proba, n_bins=n_bins, strategy='quantile')
-    brier = float(brier_score_loss(actual, proba))
-    ece = float(np.mean(np.abs(frac_pos - mean_pred)))
-    return {
-        'fraction_of_positives': frac_pos,
-        'mean_predicted_value': mean_pred,
-        'brier_score': brier,
-        'ece': ece,
-        'n_samples': len(actual),
-        'base_rate': float(actual.mean()),
-    }
-
-
-def check_calibration(
-    model: Model,
-    scaler: StandardScaler,
-    df: pd.DataFrame,
-    feature_columns: List[str],
-    n_bins: int = 10,
-) -> Optional[Dict]:
-    """Check probability calibration on df (typically the training split)."""
-    valid = df.dropna(subset=feature_columns + ['target'])
-    if len(valid) == 0:
-        return None
-
-    X = scaler.transform(valid[feature_columns].values)
-    y = valid['target'].values
-    proba = model.predict_proba(X)[:, 1]
-
-    frac_pos, mean_pred = calibration_curve(y, proba, n_bins=n_bins, strategy='quantile')
-    brier = float(brier_score_loss(y, proba))
-    ece = float(np.mean(np.abs(frac_pos - mean_pred)))
-
-    return {
-        'fraction_of_positives': frac_pos,
-        'mean_predicted_value': mean_pred,
-        'brier_score': brier,
-        'ece': ece,
-        'n_samples': len(valid),
-        'base_rate': float(y.mean()),
-    }

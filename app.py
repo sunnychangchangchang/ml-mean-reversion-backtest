@@ -150,12 +150,12 @@ def main():
                 test_window_months=TEST_WINDOW_MONTHS,
                 risk_free_rate=risk_free_rate,
             )
-            raw_equity, raw_trades, raw_metrics_dict, raw_folds, _ = \
+            raw_equity, raw_trades, raw_metrics_dict, raw_folds = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=None, **wf_kwargs)
-            lr_equity, lr_trades, lr_metrics_dict, lr_folds, lr_oos_preds = \
+            lr_equity,  lr_trades,  lr_metrics_dict,  lr_folds  = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
                                              model_type='lr', **wf_kwargs)
-            xgb_equity, xgb_trades, xgb_metrics_dict, xgb_folds, xgb_oos_preds = \
+            xgb_equity, xgb_trades, xgb_metrics_dict, xgb_folds = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
                                              model_type='xgb', **wf_kwargs)
 
@@ -165,12 +165,8 @@ def main():
             df_backtest_period = df[
                 df.index.get_level_values('Date') >= pd.Timestamp(backtest_start)
             ]
-            ref_lr_model,  ref_lr_scaler,  ref_train_data = model.train_model(
-                df, feature_cols, backtest_start, model_type='lr'
-            )
-            ref_xgb_model, ref_xgb_scaler, _ = model.train_model(
-                df, feature_cols, backtest_start, model_type='xgb'
-            )
+            ref_lr_model,  _, _ = model.train_model(df, feature_cols, backtest_start, 'lr')
+            ref_xgb_model, _, _ = model.train_model(df, feature_cols, backtest_start, 'xgb')
             st.success(T['wf_ok'])
 
             spy_equity    = metrics.compute_spy_equity(spy_close, INITIAL_CAPITAL, backtest_start)
@@ -279,65 +275,14 @@ def main():
             st.divider()
             st.header(T['insights_hdr'])
 
-            st.subheader(T['cal_sub'])
-            st.markdown(T['cal_desc'].format(ml_thr=ML_PROB_THRESHOLD))
-            with st.expander(T['cal_expander'], expanded=False):
-                st.markdown(T['cal_body'].format(ml_thr=ML_PROB_THRESHOLD))
-
-            tab_cal_lr, tab_cal_xgb = st.tabs(['LR (L1)', 'XGBoost'])
-            for tab, oos_preds, ref_m, ref_s in [
-                (tab_cal_lr,  lr_oos_preds,  ref_lr_model,  ref_lr_scaler),
-                (tab_cal_xgb, xgb_oos_preds, ref_xgb_model, ref_xgb_scaler),
-            ]:
-                with tab:
-                    if oos_preds is not None:
-                        cal_data = model.check_calibration_oos(
-                            oos_preds['proba'], oos_preds['actual']
-                        )
-                    else:
-                        cal_data = model.check_calibration(
-                            ref_m, ref_s, ref_train_data, feature_cols
-                        )
-                    if cal_data:
-                        col_cal, col_info = st.columns([2, 1])
-                        with col_cal:
-                            st.plotly_chart(plots.plot_calibration_curve(cal_data),
-                                            use_container_width=True)
-                        with col_info:
-                            ece          = cal_data['ece']
-                            brier        = cal_data['brier_score']
-                            base         = cal_data['base_rate']
-                            brier_random = base * (1 - base)
-                            st.metric("ECE",         f"{ece:.4f}",   help=T['cal_ece_help'])
-                            st.metric("Brier Score", f"{brier:.4f}",
-                                      delta=f"{brier - brier_random:+.4f} vs random ({brier_random:.4f})",
-                                      delta_color="inverse",
-                                      help=T['cal_brier_help'])
-                            st.metric("Base Rate",   f"{base:.1%}",  help=T['cal_base_help'])
-                            st.divider()
-                            if ece < 0.03:
-                                st.success(T['cal_excellent'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
-                            elif ece < 0.05:
-                                st.success(T['cal_good'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
-                            elif ece < 0.08:
-                                st.warning(T['cal_moderate'].format(ece=ece))
-                            else:
-                                st.error(T['cal_poor'].format(ece=ece))
-
-            st.subheader(T['eda_sub'])
-            st.caption(T['eda_caption'])
-            st.plotly_chart(
-                plots.plot_feature_winrate(ref_train_data, feature_cols),
-                use_container_width=True,
-            )
-
             st.subheader(T['fi_sub'])
-            st.caption(T['fi_caption'].format(date=backtest_start))
             tab_fi_lr, tab_fi_xgb = st.tabs(['LR (L1)', 'XGBoost'])
             with tab_fi_lr:
+                st.caption(T['fi_caption_lr'].format(date=backtest_start))
                 st.dataframe(model.get_feature_importance(ref_lr_model, feature_cols),
                              use_container_width=True, hide_index=True)
             with tab_fi_xgb:
+                st.caption(T['fi_caption_xgb'].format(date=backtest_start))
                 st.dataframe(model.get_feature_importance(ref_xgb_model, feature_cols),
                              use_container_width=True, hide_index=True)
 

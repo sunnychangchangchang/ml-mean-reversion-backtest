@@ -6,8 +6,7 @@ Creates charts for equity curves, drawdowns, and trade distributions.
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from plotly.subplots import make_subplots
-from typing import Dict, List, Tuple
+from typing import Dict, Tuple
 
 
 def plot_equity_curves(
@@ -202,122 +201,5 @@ def plot_trade_distribution(
     return fig
 
 
-def plot_calibration_curve(cal_data: dict) -> go.Figure:
-    """
-    Reliability diagram: predicted probability vs actual positive rate.
-    A perfectly calibrated model follows the diagonal.
-    """
-    fig = go.Figure()
-
-    # Perfect calibration reference line
-    fig.add_trace(go.Scatter(
-        x=[0, 1], y=[0, 1],
-        mode='lines', name='Perfect Calibration',
-        line=dict(color='gray', dash='dash', width=1)
-    ))
-
-    # Model calibration curve
-    ece = cal_data['ece']
-    brier = cal_data['brier_score']
-    fig.add_trace(go.Scatter(
-        x=cal_data['mean_predicted_value'],
-        y=cal_data['fraction_of_positives'],
-        mode='lines+markers',
-        name=f'Logistic Regression  (ECE={ece:.3f}, Brier={brier:.3f})',
-        line=dict(color='steelblue', width=2),
-        marker=dict(size=8),
-    ))
-
-    # Shade the gap between model and perfect calibration
-    fig.add_trace(go.Scatter(
-        x=np.concatenate([cal_data['mean_predicted_value'],
-                          cal_data['mean_predicted_value'][::-1]]),
-        y=np.concatenate([cal_data['fraction_of_positives'],
-                          cal_data['mean_predicted_value'][::-1]]),
-        fill='toself',
-        fillcolor='rgba(70, 130, 180, 0.15)',
-        line=dict(color='rgba(255,255,255,0)'),
-        showlegend=False,
-    ))
-
-    fig.update_layout(
-        title='Calibration Curve (Reliability Diagram)',
-        xaxis=dict(title='Mean Predicted Probability', range=[0, 1]),
-        yaxis=dict(title='Fraction of Positives', range=[0, 1]),
-        template='plotly_white',
-        legend=dict(yanchor='top', y=0.15, xanchor='left', x=0.01),
-    )
-    return fig
-
-
-def plot_feature_winrate(
-    df: pd.DataFrame,
-    feature_columns: List[str],
-    n_bins: int = 8,
-) -> go.Figure:
-    """
-    For each feature, bin into quantiles and plot mean win rate per bin.
-
-    A roughly straight line → linear relationship → LR is sufficient.
-    A curve, plateau, or reversal → non-linear → XGBoost may add value.
-    """
-    valid = df.dropna(subset=feature_columns + ['target']).copy()
-    n_features = len(feature_columns)
-    n_cols = 3
-    n_rows = int(np.ceil(n_features / n_cols))
-
-    fig = make_subplots(
-        rows=n_rows, cols=n_cols,
-        subplot_titles=feature_columns,
-        vertical_spacing=0.14,
-        horizontal_spacing=0.08,
-    )
-
-    base_rate = float(valid['target'].mean())
-
-    for i, feat in enumerate(feature_columns):
-        row, col = divmod(i, n_cols)
-        row += 1
-        col += 1
-
-        try:
-            valid['_bin'] = pd.qcut(valid[feat], q=n_bins, duplicates='drop')
-            grouped     = valid.groupby('_bin', observed=True)['target'].agg(['mean', 'count'])
-            bin_centers = [iv.mid for iv in grouped.index]
-            win_rates   = grouped['mean'].values
-            counts      = grouped['count'].values
-        except Exception:
-            continue
-
-        colors = ['seagreen' if w >= base_rate else 'tomato' for w in win_rates]
-
-        fig.add_trace(go.Bar(
-            x=list(range(len(bin_centers))),
-            y=win_rates,
-            marker_color=colors,
-            customdata=np.stack([bin_centers, counts], axis=1),
-            hovertemplate=(
-                'Bin centre: %{customdata[0]:.3f}<br>'
-                'Win rate: %{y:.1%}<br>'
-                'Count: %{customdata[1]}<extra></extra>'
-            ),
-            showlegend=False,
-        ), row=row, col=col)
-
-        fig.add_hline(
-            y=base_rate, line_dash='dash', line_color='gray',
-            line_width=1, row=row, col=col,
-        )
-
-        fig.update_xaxes(showticklabels=False, row=row, col=col)
-        fig.update_yaxes(tickformat='.0%', row=row, col=col)
-
-    fig.update_layout(
-        title='Feature vs Win Rate (quantile bins) — dashed = base rate',
-        height=280 * n_rows,
-        template='plotly_white',
-        margin=dict(t=60, b=20),
-    )
-    return fig
 
 

@@ -71,7 +71,6 @@ def run_walk_forward(
     trades_df      : all trades
     overall_metrics: metrics on the complete stitched out-of-sample curve
     fold_results   : list of per-fold summary dicts (for the consistency table)
-    oos_predictions: dict with 'proba' and 'actual' arrays (ML only); None for raw strategy
     """
     folds = generate_folds(df, min_train_years, test_window_months)
     if not folds:
@@ -84,8 +83,6 @@ def run_walk_forward(
     all_equity: List[pd.DataFrame] = []
     all_trades: List[pd.DataFrame] = []
     fold_results: List[Dict] = []
-    oos_proba: List[float] = []
-    oos_actual: List[int] = []
     current_capital = initial_capital
 
     for i, fold in enumerate(folds):
@@ -122,10 +119,6 @@ def run_walk_forward(
             equity, trades, fold_metrics = run_backtest_ml(
                 df_test_preds, **kwargs, ml_prob_threshold=ml_prob_threshold
             )
-            # Collect OOS predictions for calibration check
-            valid = df_test_preds.dropna(subset=['ml_probability', 'target'])
-            oos_proba.extend(valid['ml_probability'].tolist())
-            oos_actual.extend(valid['target'].astype(int).tolist())
         else:
             # Raw strategy: no model needed
             equity, trades, fold_metrics = run_backtest_raw(df_test, **kwargs)
@@ -149,13 +142,8 @@ def run_walk_forward(
             'Trades': int(fold_metrics.get('trade_count', 0)),
         })
 
-    oos_predictions = (
-        {'proba': np.array(oos_proba), 'actual': np.array(oos_actual)}
-        if oos_proba else None
-    )
-
     if not all_equity:
-        return pd.DataFrame(), pd.DataFrame(), {}, fold_results, oos_predictions
+        return pd.DataFrame(), pd.DataFrame(), {}, fold_results
 
     combined_equity = pd.concat(all_equity, ignore_index=True)
     combined_trades = pd.concat(all_trades, ignore_index=True) if all_trades else pd.DataFrame()
@@ -181,7 +169,7 @@ def run_walk_forward(
         risk_free_rate=risk_free_rate,
     )
 
-    return combined_equity, combined_trades, overall_metrics, fold_results, oos_predictions
+    return combined_equity, combined_trades, overall_metrics, fold_results
 
 
 def _empty_fold(i: int, fold: Dict) -> Dict:
