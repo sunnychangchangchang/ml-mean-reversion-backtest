@@ -9,7 +9,10 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss
+import logging
 from typing import List, Tuple, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 
 def train_model(
@@ -60,8 +63,8 @@ def train_model(
     )
     model.fit(X_train_scaled, y_train)
     
-    print(f"Training samples: {len(X_train)}")
-    print(f"Training date range: {train_data.index.get_level_values('Date').min()} to {train_data.index.get_level_values('Date').max()}")
+    logger.info(f"Training samples: {len(X_train)}")
+    logger.info(f"Training date range: {train_data.index.get_level_values('Date').min()} to {train_data.index.get_level_values('Date').max()}")
     
     return model, scaler, train_data
 

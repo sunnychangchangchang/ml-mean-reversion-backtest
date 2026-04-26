@@ -5,7 +5,10 @@ Implements portfolio-level backtesting with proper signal generation.
 
 import pandas as pd
 import numpy as np
+import logging
 from typing import List, Tuple, Dict
+
+logger = logging.getLogger(__name__)
 
 
 def generate_signals(
@@ -101,7 +104,7 @@ def run_backtest(
     signals = df[df['signal'] == 1].copy()
 
     if len(signals) == 0:
-        print("No trading signals generated!")
+        logger.warning("No trading signals generated!")
         return pd.DataFrame(), pd.DataFrame(), calculate_metrics(
             pd.DataFrame(), pd.DataFrame(), initial_capital, transaction_cost,
             trade_days=0, risk_free_rate=risk_free_rate,

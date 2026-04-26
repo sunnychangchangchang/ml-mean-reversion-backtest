@@ -9,7 +9,10 @@ import numpy as np
 from typing import List, Optional
 from datetime import datetime
 import time
+import logging
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 CACHE_DIR = Path(__file__).parent.parent / "data" / "cache"
@@ -46,7 +49,7 @@ def _load_from_cache(ticker: str, start_date: str, end_date: str) -> Optional[pd
     if df.index.max() < end_dt - pd.Timedelta(days=7):
         return None
 
-    print(f"Loaded {ticker} from cache: {len(df)} rows")
+    logger.info(f"Loaded {ticker} from cache: {len(df)} rows")
     return df
 
 
@@ -56,7 +59,7 @@ def _save_to_cache(ticker: str, df: pd.DataFrame) -> None:
     if 'Date' not in df_to_save.columns and 'date' in df_to_save.columns:
         df_to_save = df_to_save.rename(columns={'date': 'Date'})
     df_to_save.to_csv(cache_path, index=False)
-    print(f"Cached {ticker} to {cache_path}")
+    logger.info(f"Cached {ticker} to {cache_path}")
 
 
 def _download_from_yfinance(ticker: str, start_date: str, end_date: str, max_retries: int = 3) -> Optional[pd.DataFrame]:
@@ -68,16 +71,16 @@ def _download_from_yfinance(ticker: str, start_date: str, end_date: str, max_ret
                 if isinstance(df.columns, pd.MultiIndex):
                     df.columns = df.columns.get_level_values(0)
                 df = df[['Open', 'High', 'Low', 'Close', 'Volume']]
-                print(f"Downloaded {ticker} from Yahoo Finance: {len(df)} rows")
+                logger.info(f"Downloaded {ticker} from Yahoo Finance: {len(df)} rows")
                 return df
         except Exception as e:
             error_msg = str(e)
             if 'rate limit' in error_msg.lower() or 'YFRateLimitError' in error_msg:
                 wait_time = (attempt + 1) * 30
-                print(f"Yahoo Finance rate limited for {ticker}, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
+                logger.warning(f"Yahoo Finance rate limited for {ticker}, waiting {wait_time}s (attempt {attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
             else:
-                print(f"Yahoo Finance failed for {ticker}: {e}")
+                logger.warning(f"Yahoo Finance failed for {ticker}: {e}")
                 break
 
     return None
@@ -127,8 +130,8 @@ def clear_cache(ticker: Optional[str] = None) -> None:
         cache_path = _get_cache_path(ticker)
         if cache_path.exists():
             cache_path.unlink()
-            print(f"Cleared cache for {ticker}")
+            logger.info(f"Cleared cache for {ticker}")
     else:
         for cache_file in CACHE_DIR.glob("*.csv"):
             cache_file.unlink()
-        print("Cleared all cache")
+        logger.info("Cleared all cache")

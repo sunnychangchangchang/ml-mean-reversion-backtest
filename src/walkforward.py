@@ -5,7 +5,10 @@ Retrains model at each fold boundary; capital carries over between folds.
 
 import numpy as np
 import pandas as pd
+import logging
 from typing import List, Tuple, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from src.model import train_model, predict_proba
 from src.backtest import run_backtest_raw, run_backtest_ml, calculate_metrics
@@ -112,7 +115,7 @@ def run_walk_forward(
                 fold_model, fold_scaler, _ = train_model(df, feature_cols, train_end_str)
                 df_test_preds = predict_proba(fold_model, fold_scaler, df_test, feature_cols)
             except ValueError as e:
-                print(f"Walk-forward fold {i + 1}: skipping — {e}")
+                logger.warning(f"Walk-forward fold {i + 1}: skipping — {e}")
                 fold_results.append(_empty_fold(i + 1, fold))
                 continue
             equity, trades, fold_metrics = run_backtest_ml(
