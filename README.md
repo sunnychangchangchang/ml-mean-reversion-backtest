@@ -8,8 +8,7 @@ The strategy is deliberately simple: identify large 5-day selloffs, enter at the
 
 | Item | Implementation |
 | --- | --- |
-| Universe | US large-cap equities selected in the UI: `AAPL`, `MSFT`, `NVDA`, `TSLA`, `AMZN`, `GOOGL`, `META`, `NFLX` |
-| Default universe | `AAPL`, `MSFT`, `NVDA`, `TSLA`, `AMZN` |
+| Universe | Cached US large-cap research universe: `AAPL`, `MSFT`, `NVDA`, `TSLA`, `AMZN` |
 | Hypothesis | Stocks with sharp short-term declines may mean-revert intraday on the next session |
 | Raw signal | `return_5d < -5%` by default |
 | ML target | `1` if `Close[t+1] > Open[t+1]`, otherwise `0`; unknown final observations remain `NaN` |
