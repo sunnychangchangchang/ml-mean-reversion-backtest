@@ -15,7 +15,7 @@ The strategy is deliberately simple: identify large 5-day selloffs, enter at the
 | Models | LR (L1, C=0.5, liblinear) and XGBoost (max_depth=3, n_estimators=300) |
 | ML threshold | `0.55` — above the 0.50 natural boundary to filter for higher-confidence trades |
 | Execution | Signal at close of day `t`; enter `Open[t+1]`; exit `Close[t+1]` |
-| Cost model | `0.10%` round-trip transaction cost |
+| Cost model | `0.05%` one-way transaction cost (`0.10%` round-trip) |
 | Portfolio | Long only, no leverage, max 3 concurrent positions, max 50% per position |
 | Validation | Expanding-window walk-forward; 3-year minimum training history, 12-month test windows |
 | Benchmark | SPY buy-and-hold normalized to the same out-of-sample start date |
@@ -75,7 +75,7 @@ Fixed parameters (not exposed as controls to prevent overfitting):
 
 - Initial capital: `$100,000`
 - ML probability threshold: `0.55`
-- Transaction cost: `0.10%`
+- Transaction cost: `0.10%` round-trip (`0.05%` one-way)
 - Test window: `12` months
 - Minimum training period: `3` years
 - Max positions: `3`

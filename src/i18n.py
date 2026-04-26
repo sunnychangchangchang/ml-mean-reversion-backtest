@@ -138,6 +138,35 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
 
     # ── ML insights ───────────────────────────────────────────────────────────
     'insights_hdr':     '🔍 ML Model Insights',
+    'ml_diag_sub':      'Out-of-Sample ML Diagnostics',
+    'ml_diag_caption':  'Fold-level metrics computed on strictly out-of-sample predictions (rows with observable targets only).',
+    'no_ml_diag_info':  'No out-of-sample ML diagnostics available for this date range.',
+    'ml_diag_summary_no_data': '_No OOS diagnostic data available._',
+    'ml_diag_auc_undef': '**AUC undefined** (only one class in OOS window).',
+    'ml_diag_auc_weak': '**Very weak** — close to random.',
+    'ml_diag_auc_small': '**Small edge** — typical for noisy financial labels.',
+    'ml_diag_auc_meaningful': '**Meaningful edge** — rare in daily data; check robustness.',
+    'ml_diag_auc_suspicious': '**Unusually high** — double-check data leakage/adjustment.',
+    'ml_diag_imp_na': 'N/A',
+    'ml_diag_imp_clear': 'clear improvement',
+    'ml_diag_imp_small': 'small improvement',
+    'ml_diag_imp_none': 'no material change',
+    'ml_diag_imp_worse': 'worse than baseline',
+    'ml_diag_verdict_weak': '**Bottom line**: the ML edge looks **too weak** to justify a probability filter right now. Treat performance as noise unless the backtest shows a clear, robust improvement after costs.',
+    'ml_diag_verdict_mixed': '**Bottom line**: ML signal quality is **mixed**. Prefer judging the strategy via walk-forward trading performance and fold consistency, not the headline AUC.',
+    'ml_diag_verdict_promising': '**Bottom line**: ML looks **promising** (better than baseline and reasonably stable). Next step is robustness checks (cost/slippage stress, universe expansion, threshold sensitivity).',
+    'ml_diag_summary': """\
+### Quick read (OOS)
+- **Sample size (N)**: **{n:,}**, **base rate**: **{base_rate:.1%}**
+- **AUC**: **{auc:.3f}** → {auc_band}
+- **Fold stability (AUC)**: mean **{auc_mean:.3f}**, std **{auc_std:.3f}**, best **{auc_best:.3f}**, worst **{auc_worst:.3f}**, % folds > 0.5: **{frac_gt_05:.0%}**
+- **LogLoss**: **{logloss:.4f}** vs baseline **{logloss_base:.4f}** → **{logloss_imp_word}** (Δ={logloss_impr:+.4f})
+- **Brier**: **{brier:.4f}** vs baseline **{brier_base:.4f}** → **{brier_imp_word}** (Δ={brier_impr:+.4f})
+
+Interpretation: AUC tells you ranking skill; LogLoss/Brier tell you whether the **probabilities** are useful (better than “always guess the base rate”).\
+
+{verdict}\
+""",
     'fi_sub':           'Feature Importance',
     'fi_caption_lr':    (
         'L1 Logistic Regression coefficients — reference model trained on all data before {date}. '
@@ -287,6 +316,35 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
 
     # ── ML insights ───────────────────────────────────────────────────────────
     'insights_hdr':     '🔍 ML 模型分析',
+    'ml_diag_sub':      'Out-of-Sample ML 診斷指標',
+    'ml_diag_caption':  '各折指標使用嚴格 out-of-sample 預測計算（僅包含 target 可觀測的樣本）。',
+    'no_ml_diag_info':  '此日期範圍沒有可用的 out-of-sample ML 診斷指標。',
+    'ml_diag_summary_no_data': '_沒有可用的 OOS 診斷資料。_',
+    'ml_diag_auc_undef': '**AUC 無法計算**（該 OOS 視窗只出現單一類別）。',
+    'ml_diag_auc_weak': '**非常弱** — 接近亂猜。',
+    'ml_diag_auc_small': '**小幅優勢** — 金融噪音標籤常見的量級。',
+    'ml_diag_auc_meaningful': '**有意義的優勢** — 日資料較少見，需看穩健性。',
+    'ml_diag_auc_suspicious': '**異常偏高** — 優先檢查資料洩漏/調整方式。',
+    'ml_diag_imp_na': 'N/A',
+    'ml_diag_imp_clear': '明顯改善',
+    'ml_diag_imp_small': '小幅改善',
+    'ml_diag_imp_none': '沒有實質差異',
+    'ml_diag_imp_worse': '比 baseline 更差',
+    'ml_diag_verdict_weak': '**結論**：目前 ML 的 edge **太弱**，不建議用機率門檻當交易 filter。除非回測在扣成本後能顯示穩健改善，否則多半是噪音。',
+    'ml_diag_verdict_mixed': '**結論**：ML 訊號品質 **混合**。建議以 walk-forward 的交易績效與各折一致性為主，不要只看 AUC。',
+    'ml_diag_verdict_promising': '**結論**：ML 看起來 **有潛力**（優於 baseline 且相對穩定）。下一步做穩健性：成本/滑價壓力測試、擴大 universe、門檻敏感度。',
+    'ml_diag_summary': """\
+### 快速解讀（OOS）
+- **樣本數 (N)**：**{n:,}**，**base rate**：**{base_rate:.1%}**
+- **AUC**：**{auc:.3f}** → {auc_band}
+- **各折穩定性（AUC）**：平均 **{auc_mean:.3f}**，標準差 **{auc_std:.3f}**，最佳 **{auc_best:.3f}**，最差 **{auc_worst:.3f}**，AUC > 0.5 的折比例：**{frac_gt_05:.0%}**
+- **LogLoss**：**{logloss:.4f}**，baseline **{logloss_base:.4f}** → **{logloss_imp_word}**（Δ={logloss_impr:+.4f}）
+- **Brier**：**{brier:.4f}**，baseline **{brier_base:.4f}** → **{brier_imp_word}**（Δ={brier_impr:+.4f}）
+
+解讀方式：AUC 看「排序能力」；LogLoss/Brier 看「機率是否可信」（是否優於「永遠猜 base rate」）。\
+
+{verdict}\
+""",
     'fi_sub':           '特徵重要性',
     'fi_caption_lr':    (
         'L1 邏輯回歸係數——參考模型以 {date} 前所有資料訓練。'

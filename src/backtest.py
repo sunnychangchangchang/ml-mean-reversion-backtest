@@ -16,20 +16,10 @@ def generate_signals(
     return_threshold: float = -0.05,
     ml_prob_threshold: float = 0.55,
 ) -> pd.DataFrame:
-    """
-    Generate ML-filtered trading signals.
-
-    Signal generation (NO LOOK-AHEAD BIAS):
-    - At day t close, we only have access to data up to day t
-    - Signal is generated based on return_5d = Close[t] / Close[t-5] - 1
-    - Entry happens at Open[t+1], exit at Close[t+1]
-
-    Rule: return_5d < threshold AND ml_probability > ml_prob_threshold
-    """
+    """Add signal column: 1 where return_5d < threshold AND ml_probability > ml_prob_threshold."""
     df = df.copy()
-    df['raw_signal'] = (df['return_5d'] < return_threshold).astype(int)
     df['signal'] = (
-        (df['raw_signal'] == 1) & (df['ml_probability'] > ml_prob_threshold)
+        (df['return_5d'] < return_threshold) & (df['ml_probability'] > ml_prob_threshold)
     ).astype(int)
     return df
 
@@ -56,7 +46,7 @@ def run_backtest(
     initial_capital: float = 100000,
     max_positions: int = 3,
     max_weight: float = 0.5,
-    transaction_cost: float = 0.001,
+    transaction_cost: float = 0.0005,
     rank_col: str = 'ml_probability',
     risk_free_rate: float = 0.0,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
@@ -74,7 +64,7 @@ def run_backtest(
         initial_capital: Initial capital amount
         max_positions: Maximum number of concurrent positions
         max_weight: Maximum weight per position (e.g., 0.5 for 50%)
-        transaction_cost: Round-trip transaction cost (e.g., 0.001 for 0.1%)
+        transaction_cost: One-way transaction cost (entry OR exit). Round-trip = 2 × transaction_cost.
         rank_col: Column used to rank and select positions when signals exceed max_positions
 
     Returns:
@@ -205,7 +195,7 @@ def run_backtest_raw(
     initial_capital: float = 100000,
     max_positions: int = 3,
     max_weight: float = 0.5,
-    transaction_cost: float = 0.001,
+    transaction_cost: float = 0.0005,
     return_threshold: float = -0.05,
     risk_free_rate: float = 0.0,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
@@ -232,7 +222,7 @@ def run_backtest_ml(
     initial_capital: float = 100000,
     max_positions: int = 3,
     max_weight: float = 0.5,
-    transaction_cost: float = 0.001,
+    transaction_cost: float = 0.0005,
     return_threshold: float = -0.05,
     ml_prob_threshold: float = 0.55,
     risk_free_rate: float = 0.0,

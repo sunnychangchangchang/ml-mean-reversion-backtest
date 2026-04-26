@@ -6,6 +6,7 @@ import traceback
 
 import streamlit as st
 import pandas as pd
+import numpy as np
 from datetime import datetime
 
 from src import data, features, model, metrics, plots, walkforward, i18n
@@ -27,7 +28,6 @@ st.set_page_config(
 )
 
 
-
 def _format_fold_table(fold_results: list) -> pd.DataFrame:
     rows = []
     for r in fold_results:
@@ -41,6 +41,111 @@ def _format_fold_table(fold_results: list) -> pd.DataFrame:
             'Trades': str(r['Trades']),
         })
     return pd.DataFrame(rows)
+
+
+def _style_left(df: pd.DataFrame) -> "pd.io.formats.style.Styler":
+    return df.style.set_properties(**{'text-align': 'left'}).set_table_styles(
+        [{'selector': 'th', 'props': [('text-align', 'left')]}]
+    )
+
+
+def _ml_diag_summary_markdown(T: dict, m: dict, folds: list) -> str:
+    """Return a short, high-signal interpretation of OOS ML diagnostics."""
+    n = int(m.get('ml_oos_n', 0) or 0)
+    if n <= 0:
+        return T['ml_diag_summary_no_data']
+
+    auc = float(m.get('ml_oos_auc', np.nan))
+    ll = float(m.get('ml_oos_logloss', np.nan))
+    brier = float(m.get('ml_oos_brier', np.nan))
+    p = float(m.get('ml_oos_base_rate', np.nan))
+
+    # Baseline: constant predictor p (i.e., "always guess the base rate").
+    eps = 1e-12
+    p0 = float(np.clip(p, eps, 1 - eps))
+    ll_base = float(-(p0 * np.log(p0) + (1 - p0) * np.log(1 - p0)))
+    brier_base = float(p0 * (1 - p0))  # E[(p-y)^2] when y~Bernoulli(p)
+
+    ll_impr = ll_base - ll
+    brier_impr = brier_base - brier
+
+    # Fold stability stats (AUC).
+    aucs = []
+    ns = []
+    for r in (folds or []):
+        if 'ML AUC' not in r:
+            continue
+        v = r.get('ML AUC')
+        if v is None or not np.isfinite(v):
+            continue
+        aucs.append(float(v))
+        ns.append(int(r.get('ML N', 0) or 0))
+    if len(aucs) >= 2:
+        auc_mean = float(np.mean(aucs))
+        auc_std = float(np.std(aucs, ddof=1))
+        frac_gt_05 = float(np.mean(np.array(aucs) > 0.5))
+        auc_best = float(np.max(aucs))
+        auc_worst = float(np.min(aucs))
+    elif len(aucs) == 1:
+        auc_mean = auc_best = auc_worst = float(aucs[0])
+        auc_std = 0.0
+        frac_gt_05 = 1.0 if auc_mean > 0.5 else 0.0
+    else:
+        auc_mean = auc_std = frac_gt_05 = auc_best = auc_worst = np.nan
+
+    # AUC interpretation buckets (finance-appropriate).
+    if np.isnan(auc):
+        auc_band = T['ml_diag_auc_undef']
+    elif auc < 0.505:
+        auc_band = T['ml_diag_auc_weak']
+    elif auc < 0.53:
+        auc_band = T['ml_diag_auc_small']
+    elif auc < 0.58:
+        auc_band = T['ml_diag_auc_meaningful']
+    else:
+        auc_band = T['ml_diag_auc_suspicious']
+
+    # Improvement interpretation (tiny improvements are normal in finance).
+    def _imp_word(x: float) -> str:
+        if not np.isfinite(x):
+            return T['ml_diag_imp_na']
+        if x > 0.002:
+            return T['ml_diag_imp_clear']
+        if x > 0.0005:
+            return T['ml_diag_imp_small']
+        if x >= -0.0005:
+            return T['ml_diag_imp_none']
+        return T['ml_diag_imp_worse']
+
+    ll_word = _imp_word(ll_impr)
+    brier_word = _imp_word(brier_impr)
+    if np.isfinite(auc) and auc < 0.53 and ll_impr <= 0.0005 and brier_impr <= 0.0005:
+        verdict = T['ml_diag_verdict_weak']
+    elif np.isfinite(auc) and auc >= 0.53 and (ll_impr > 0.0005 or brier_impr > 0.0005):
+        verdict = T['ml_diag_verdict_promising']
+    else:
+        verdict = T['ml_diag_verdict_mixed']
+
+    return T['ml_diag_summary'].format(
+        n=n,
+        base_rate=p,
+        auc=auc,
+        auc_band=auc_band,
+        auc_mean=auc_mean,
+        auc_std=auc_std,
+        auc_best=auc_best,
+        auc_worst=auc_worst,
+        frac_gt_05=frac_gt_05,
+        logloss=ll,
+        logloss_base=ll_base,
+        logloss_impr=ll_impr,
+        logloss_imp_word=ll_word,
+        brier=brier,
+        brier_base=brier_base,
+        brier_impr=brier_impr,
+        brier_imp_word=brier_word,
+        verdict=verdict,
+    )
 
 
 def main():
@@ -95,7 +200,7 @@ def main():
     st.sidebar.markdown(T['fixed_header'])
     st.sidebar.markdown(T['fixed_body'].format(
         ml_thr=ML_PROB_THRESHOLD,
-        tc=TRANSACTION_COST,
+        tc=2 * TRANSACTION_COST,
         tw=TEST_WINDOW_MONTHS,
         mty=MIN_TRAIN_YEARS,
         ic=INITIAL_CAPITAL,
@@ -152,12 +257,12 @@ def main():
                 test_window_months=TEST_WINDOW_MONTHS,
                 risk_free_rate=risk_free_rate,
             )
-            raw_equity, raw_trades, raw_metrics_dict, raw_folds = \
+            raw_equity, raw_trades, raw_metrics_dict, raw_folds, _ = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=None, **wf_kwargs)
-            lr_equity,  lr_trades,  lr_metrics_dict,  lr_folds  = \
+            lr_equity,  lr_trades,  lr_metrics_dict,  lr_folds,  _  = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
                                              model_type='lr', **wf_kwargs)
-            xgb_equity, xgb_trades, xgb_metrics_dict, xgb_folds = \
+            xgb_equity, xgb_trades, xgb_metrics_dict, xgb_folds, _ = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
                                              model_type='xgb', **wf_kwargs)
 
@@ -199,13 +304,13 @@ def main():
             tab_lr, tab_xgb = st.tabs(['LR (L1)', 'XGBoost'])
             with tab_lr:
                 if lr_folds:
-                    st.dataframe(_format_fold_table(lr_folds),
+                    st.dataframe(_style_left(_format_fold_table(lr_folds)),
                                  use_container_width=True, hide_index=True)
                 else:
                     st.info(T['no_folds_info'])
             with tab_xgb:
                 if xgb_folds:
-                    st.dataframe(_format_fold_table(xgb_folds),
+                    st.dataframe(_style_left(_format_fold_table(xgb_folds)),
                                  use_container_width=True, hide_index=True)
                 else:
                     st.info(T['no_folds_info'])
@@ -233,7 +338,7 @@ def main():
                 plots.plot_yearly_returns(raw_yearly, lr_yearly, spy_yearly, xgb_yearly=xgb_yearly),
                 use_container_width=True
             )
-            if lr_yearly is not None and lr_yearly.get('Partial', pd.Series()).any():
+            if lr_yearly is not None and lr_yearly['Partial'].any():
                 st.caption(T['partial_caption'])
 
             col1, col2 = st.columns(2)
@@ -276,6 +381,46 @@ def main():
 
             st.divider()
             st.header(T['insights_hdr'])
+
+            st.subheader(T['ml_diag_sub'])
+            st.caption(T['ml_diag_caption'])
+            tab_ml_lr, tab_ml_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+            for tab, m_dict, folds in [(tab_ml_lr, lr_metrics_dict, lr_folds), (tab_ml_xgb, xgb_metrics_dict, xgb_folds)]:
+                with tab:
+                    c1, c2, c3, c4 = st.columns(4)
+                    c1.metric('OOS AUC', f"{m_dict.get('ml_oos_auc', 0):.3f}" if m_dict.get('ml_oos_n', 0) else "—")
+                    c2.metric('OOS LogLoss', f"{m_dict.get('ml_oos_logloss', 0):.4f}" if m_dict.get('ml_oos_n', 0) else "—")
+                    c3.metric('OOS Brier', f"{m_dict.get('ml_oos_brier', 0):.4f}" if m_dict.get('ml_oos_n', 0) else "—")
+                    c4.metric('OOS Base Rate', f"{m_dict.get('ml_oos_base_rate', 0):.1%}" if m_dict.get('ml_oos_n', 0) else "—")
+
+                    st.markdown(_ml_diag_summary_markdown(T, m_dict, folds))
+
+                    if folds:
+                        diag_rows = []
+                        for r in folds:
+                            if 'ML N' not in r:
+                                continue
+                            diag_rows.append({
+                                'Fold': r.get('Fold'),
+                                'Test Period': r.get('Test Period'),
+                                'N': r.get('ML N', 0),
+                                'Base Rate': r.get('ML Base Rate', 0.0),
+                                'AUC': r.get('ML AUC', 0.0),
+                                'LogLoss': r.get('ML LogLoss', 0.0),
+                                'Brier': r.get('ML Brier', 0.0),
+                            })
+                        if diag_rows:
+                            df_diag = pd.DataFrame(diag_rows)
+                            df_diag['Fold'] = df_diag['Fold'].astype(str)
+                            df_diag['Base Rate'] = df_diag['Base Rate'].apply(lambda x: f"{x:.1%}")
+                            df_diag['AUC'] = df_diag['AUC'].apply(lambda x: f"{x:.3f}" if pd.notna(x) else "—")
+                            df_diag['LogLoss'] = df_diag['LogLoss'].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "—")
+                            df_diag['Brier'] = df_diag['Brier'].apply(lambda x: f"{x:.4f}" if pd.notna(x) else "—")
+                            st.dataframe(_style_left(df_diag), use_container_width=True, hide_index=True)
+                        else:
+                            st.info(T['no_ml_diag_info'])
+                    else:
+                        st.info(T['no_ml_diag_info'])
 
             st.subheader(T['fi_sub'])
             tab_fi_lr, tab_fi_xgb = st.tabs(['LR (L1)', 'XGBoost'])

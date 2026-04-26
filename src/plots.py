@@ -5,6 +5,7 @@ Creates charts for equity curves, drawdowns, and trade distributions.
 
 import pandas as pd
 import plotly.graph_objects as go
+import numpy as np
 
 
 def plot_equity_curves(
@@ -180,6 +181,41 @@ def plot_trade_distribution(
     
     return fig
 
+
+def plot_calibration_curve(cal_data: dict) -> go.Figure:
+    """Plot a reliability diagram from check_calibration_oos() output."""
+    fig = go.Figure()
+    if not cal_data or not cal_data.get('bins'):
+        fig.update_layout(title='Calibration - No Data', template='plotly_white')
+        return fig
+
+    bins = cal_data['bins']
+    x = [r['avg_proba'] for r in bins]
+    y = [r['avg_actual'] for r in bins]
+    sizes = np.sqrt([max(1, r['count']) for r in bins])
+
+    fig.add_trace(go.Scatter(
+        x=x, y=y,
+        mode='markers+lines',
+        name='OOS calibration',
+        marker=dict(size=sizes, color='steelblue', opacity=0.8),
+        line=dict(color='steelblue', width=2),
+    ))
+    fig.add_trace(go.Scatter(
+        x=[0, 1], y=[0, 1],
+        mode='lines',
+        name='Perfect calibration',
+        line=dict(color='gray', dash='dash'),
+    ))
+    fig.update_layout(
+        title=f"Calibration (OOS) — ECE={cal_data.get('ece', float('nan')):.4f}, "
+              f"Brier={cal_data.get('brier_score', float('nan')):.4f}",
+        xaxis_title='Mean predicted probability',
+        yaxis_title='Empirical positive rate',
+        template='plotly_white',
+        hovermode='closest',
+    )
+    return fig
 
 
 

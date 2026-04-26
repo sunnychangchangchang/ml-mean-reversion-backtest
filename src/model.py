@@ -7,9 +7,10 @@ import pandas as pd
 import numpy as np
 from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
+from sklearn.metrics import roc_auc_score, log_loss
 from xgboost import XGBClassifier
 import logging
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional, Dict
 
 logger = logging.getLogger(__name__)
 
@@ -138,4 +139,88 @@ def get_feature_importance(
         })
         return importance.sort_values('importance', ascending=False)
 
+
+def evaluate_oos_predictions(
+    proba: np.ndarray,
+    actual: np.ndarray,
+) -> Dict[str, float]:
+    """
+    Evaluate out-of-sample probabilistic predictions for a binary target.
+    Returns a compact set of diagnostics commonly requested in quant ML reviews.
+    """
+    proba = np.asarray(proba, dtype=float)
+    actual = np.asarray(actual, dtype=float)
+    mask = np.isfinite(proba) & np.isfinite(actual)
+    proba = proba[mask]
+    actual = actual[mask].astype(int)
+    if len(actual) == 0:
+        return {'n': 0, 'base_rate': np.nan, 'auc': np.nan, 'logloss': np.nan, 'brier': np.nan}
+
+    base_rate = float(actual.mean())
+    # AUC is undefined if only one class present.
+    auc: Optional[float]
+    if len(np.unique(actual)) < 2:
+        auc = np.nan
+    else:
+        auc = float(roc_auc_score(actual, proba))
+
+    # log_loss is stable with clipping; sklearn handles it internally but we clamp for safety.
+    eps = 1e-12
+    proba_c = np.clip(proba, eps, 1 - eps)
+    ll = float(log_loss(actual, proba_c, labels=[0, 1]))
+    brier = float(np.mean((proba - actual) ** 2))
+    return {'n': int(len(actual)), 'base_rate': base_rate, 'auc': auc, 'logloss': ll, 'brier': brier}
+
+
+def check_calibration_oos(
+    proba: np.ndarray,
+    actual: np.ndarray,
+    n_bins: int = 10,
+) -> Optional[Dict]:
+    """
+    Simple out-of-sample calibration summary (ECE + Brier + per-bin stats).
+    Returns None if inputs are empty.
+    """
+    proba = np.asarray(proba, dtype=float)
+    actual = np.asarray(actual, dtype=float)
+    mask = np.isfinite(proba) & np.isfinite(actual)
+    proba = proba[mask]
+    actual = actual[mask].astype(int)
+    if len(actual) == 0:
+        return None
+
+    eps = 1e-12
+    proba_c = np.clip(proba, eps, 1 - eps)
+    brier = float(np.mean((proba - actual) ** 2))
+    base_rate = float(actual.mean())
+
+    bins = np.linspace(0.0, 1.0, n_bins + 1)
+    bin_ids = np.digitize(proba_c, bins, right=True) - 1
+    bin_ids = np.clip(bin_ids, 0, n_bins - 1)
+
+    rows = []
+    ece = 0.0
+    n = len(actual)
+    for b in range(n_bins):
+        m = bin_ids == b
+        if not np.any(m):
+            continue
+        p_hat = float(proba_c[m].mean())
+        y_hat = float(actual[m].mean())
+        w = float(np.sum(m) / n)
+        ece += w * abs(p_hat - y_hat)
+        rows.append({
+            'bin': b,
+            'count': int(np.sum(m)),
+            'avg_proba': p_hat,
+            'avg_actual': y_hat,
+        })
+
+    return {
+        'n': int(n),
+        'ece': float(ece),
+        'brier_score': brier,
+        'base_rate': base_rate,
+        'bins': rows,
+    }
 

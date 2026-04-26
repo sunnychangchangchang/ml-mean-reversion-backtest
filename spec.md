@@ -205,7 +205,7 @@ gross_trade_return - 2 × one_way_transaction_cost
 Default round-trip cost:
 
 ```text
-0.10%
+0.10%  (0.05% one-way)
 ```
 
 ## Portfolio Construction

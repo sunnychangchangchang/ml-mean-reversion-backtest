@@ -4,12 +4,14 @@ Retrains model at each fold boundary; capital carries over between folds.
 """
 
 import pandas as pd
+import numpy as np
 import logging
 from typing import List, Tuple, Dict, Optional
 
 logger = logging.getLogger(__name__)
 
 from src.model import train_model, predict_proba
+from src.model import evaluate_oos_predictions
 from src.backtest import run_backtest_raw, run_backtest_ml, calculate_metrics
 
 
@@ -46,14 +48,14 @@ def run_walk_forward(
     initial_capital: float = 100000,
     max_positions: int = 3,
     max_weight: float = 0.5,
-    transaction_cost: float = 0.001,
+    transaction_cost: float = 0.0005,
     return_threshold: float = -0.05,
     ml_prob_threshold: Optional[float] = 0.55,
     model_type: str = 'lr',
     min_train_years: int = 3,
     test_window_months: int = 12,
     risk_free_rate: float = 0.0,
-) -> Tuple[pd.DataFrame, pd.DataFrame, Dict, List[Dict]]:
+) -> Tuple[pd.DataFrame, pd.DataFrame, Dict, List[Dict], Optional[Dict[str, list]]]:
     """
     Walk-forward validation with capital continuity between folds.
 
@@ -70,6 +72,7 @@ def run_walk_forward(
     trades_df      : all trades
     overall_metrics: metrics on the complete stitched out-of-sample curve
     fold_results   : list of per-fold summary dicts (for the consistency table)
+    oos_preds      : dict with keys {'proba','actual','date','ticker'} for OOS ML evaluation (None for raw)
     """
     folds = generate_folds(df, min_train_years, test_window_months)
     if not folds:
@@ -83,6 +86,9 @@ def run_walk_forward(
     all_trades: List[pd.DataFrame] = []
     fold_results: List[Dict] = []
     current_capital = initial_capital
+    oos_preds: Optional[Dict[str, list]] = None
+    if ml_prob_threshold is not None:
+        oos_preds = {'proba': [], 'actual': [], 'date': [], 'ticker': []}
 
     for i, fold in enumerate(folds):
         # Intermediate folds use [start, end) so the boundary date falls in the next fold.
@@ -115,12 +121,28 @@ def run_walk_forward(
                 logger.warning(f"Walk-forward fold {i + 1}: skipping — {e}")
                 fold_results.append(_empty_fold(i + 1, fold))
                 continue
+
+            # Fold-level OOS ML diagnostics (computed on rows with observable targets).
+            diag_mask = df_test_preds['target'].notna() & df_test_preds['ml_probability'].notna()
+            fold_diag = evaluate_oos_predictions(
+                df_test_preds.loc[diag_mask, 'ml_probability'].values,
+                df_test_preds.loc[diag_mask, 'target'].values,
+            )
+            if oos_preds is not None and diag_mask.any():
+                oos_preds['proba'].extend(df_test_preds.loc[diag_mask, 'ml_probability'].tolist())
+                oos_preds['actual'].extend(df_test_preds.loc[diag_mask, 'target'].astype(int).tolist())
+                # MultiIndex: (ticker, Date)
+                idx = df_test_preds.loc[diag_mask].index
+                oos_preds['ticker'].extend(idx.get_level_values('ticker').tolist())
+                oos_preds['date'].extend(pd.to_datetime(idx.get_level_values('Date')).tolist())
+
             equity, trades, fold_metrics = run_backtest_ml(
                 df_test_preds, **kwargs, ml_prob_threshold=ml_prob_threshold
             )
         else:
             # Raw strategy: no model needed
             equity, trades, fold_metrics = run_backtest_raw(df_test, **kwargs)
+            fold_diag = None
 
         if len(equity) > 0:
             current_capital = equity['capital'].iloc[-1]
@@ -128,7 +150,7 @@ def run_walk_forward(
         if len(trades) > 0:
             all_trades.append(trades)
 
-        fold_results.append({
+        row = {
             'Fold': i + 1,
             'Test Period': (
                 f"{fold['test_start'].strftime('%Y-%m')} → "
@@ -139,10 +161,19 @@ def run_walk_forward(
             'Max DD': fold_metrics.get('max_drawdown', 0.0),
             'Win Rate': fold_metrics.get('win_rate', 0.0),
             'Trades': int(fold_metrics.get('trade_count', 0)),
-        })
+        }
+        if fold_diag is not None:
+            row.update({
+                'ML N': fold_diag.get('n', 0),
+                'ML Base Rate': fold_diag.get('base_rate', 0.0),
+                'ML AUC': fold_diag.get('auc', 0.0),
+                'ML LogLoss': fold_diag.get('logloss', 0.0),
+                'ML Brier': fold_diag.get('brier', 0.0),
+            })
+        fold_results.append(row)
 
     if not all_equity:
-        return pd.DataFrame(), pd.DataFrame(), {}, fold_results
+        return pd.DataFrame(), pd.DataFrame(), {}, fold_results, oos_preds
 
     combined_equity = pd.concat(all_equity, ignore_index=True)
     combined_trades = pd.concat(all_trades, ignore_index=True) if all_trades else pd.DataFrame()
@@ -167,7 +198,21 @@ def run_walk_forward(
         risk_free_rate=risk_free_rate,
     )
 
-    return combined_equity, combined_trades, overall_metrics, fold_results
+    # Overall OOS ML diagnostics, attached to overall_metrics for easy display.
+    if oos_preds is not None and len(oos_preds.get('actual', [])) > 0:
+        overall_diag = evaluate_oos_predictions(
+            np.asarray(oos_preds['proba'], dtype=float),
+            np.asarray(oos_preds['actual'], dtype=float),
+        )
+        overall_metrics.update({
+            'ml_oos_n': overall_diag.get('n', 0),
+            'ml_oos_base_rate': overall_diag.get('base_rate', 0.0),
+            'ml_oos_auc': overall_diag.get('auc', 0.0),
+            'ml_oos_logloss': overall_diag.get('logloss', 0.0),
+            'ml_oos_brier': overall_diag.get('brier', 0.0),
+        })
+
+    return combined_equity, combined_trades, overall_metrics, fold_results, oos_preds
 
 
 def _empty_fold(i: int, fold: Dict) -> Dict:

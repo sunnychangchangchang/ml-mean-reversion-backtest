@@ -8,3 +8,9 @@ __pycache__/
 venv/
 
 outputs/
+
+# Local agent / IDE settings
+.claude/
+
+# Local cache metadata (generated at runtime)
+data/cache/*.meta.json
