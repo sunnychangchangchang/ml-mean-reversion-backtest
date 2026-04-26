@@ -25,52 +25,6 @@ st.set_page_config(
 )
 
 
-_METRIC_DEFS = [
-    ('cumreturn',    'cumulative_return',  ':.2%'),
-    ('annreturn',    'annualized_return',  ':.2%'),
-    ('vol',          'volatility',         ':.2%'),
-    ('sharpe',       'sharpe_ratio',       ':.2f'),
-    ('active_sharpe','active_sharpe',      ':.2f'),
-    ('maxdd',        'max_drawdown',       ':.2%'),
-    ('winrate',      'win_rate',           ':.1%'),
-    ('trades',       'trade_count',        ':d'),
-    ('avgtrade',     'avg_trade_return',   ':.2%'),
-    ('exposure',     'exposure_ratio',     ':.1%'),
-]
-
-def _fmt_metric(val, fmt: str) -> str:
-    if fmt == ':d':
-        return str(int(val))
-    return format(float(val), fmt.lstrip(':'))
-
-def _render_metrics_table(T, raw_m, lr_m, xgb_m):
-    rows = ""
-    for i, (suffix, key, fmt) in enumerate(_METRIC_DEFS):
-        label     = T[f'metric_label_{suffix}']
-        help_text = T[f'metric_help_{suffix}']
-        raw_val   = _fmt_metric(raw_m.get(key, 0), fmt)
-        lr_val    = _fmt_metric(lr_m.get(key, 0), fmt)
-        xgb_val   = _fmt_metric(xgb_m.get(key, 0), fmt)
-        bg = "rgba(255,255,255,0.03)" if i % 2 == 0 else "transparent"
-        rows += (
-            f'<tr style="background:{bg}">'
-            f'<td style="padding:8px 12px;cursor:help" title="{help_text}">'
-            f'{label}&nbsp;<span style="opacity:0.45;font-size:11px">(?)</span></td>'
-            f'<td style="padding:8px 12px">{raw_val}</td>'
-            f'<td style="padding:8px 12px">{lr_val}</td>'
-            f'<td style="padding:8px 12px">{xgb_val}</td>'
-            f'</tr>'
-        )
-    st.markdown(
-        f'<table style="width:100%;border-collapse:collapse;font-size:14px">'
-        f'<thead><tr style="border-bottom:1px solid rgba(250,250,250,0.2)">'
-        f'<th style="text-align:left;padding:8px 12px;font-weight:600">Metric</th>'
-        f'<th style="text-align:left;padding:8px 12px;font-weight:600">Raw</th>'
-        f'<th style="text-align:left;padding:8px 12px;font-weight:600">LR (L1)</th>'
-        f'<th style="text-align:left;padding:8px 12px;font-weight:600">XGBoost</th>'
-        f'</tr></thead><tbody>{rows}</tbody></table>',
-        unsafe_allow_html=True,
-    )
 
 def _format_fold_table(fold_results: list) -> pd.DataFrame:
     rows = []
@@ -261,7 +215,10 @@ def main():
             st.divider()
             st.header(T['metrics_hdr'])
             st.caption(T['metrics_caption'])
-            _render_metrics_table(T, raw_metrics_dict, lr_metrics_dict, xgb_metrics_dict)
+            st.dataframe(
+                metrics.compare_strategies(raw_metrics_dict, lr_metrics_dict, xgb_metrics_dict),
+                use_container_width=True, hide_index=True,
+            )
 
             st.divider()
             st.header(T['viz_hdr'])
