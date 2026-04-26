@@ -34,10 +34,10 @@ _EN = {
     ),
     'fixed_header':         '**Fixed Parameters** *(not tunable)*',
     'fixed_body':           (
-        '- ML Threshold: **{ml_thr:.2f}** — LR natural boundary, calibration-verified  \n'
+        '- ML Threshold: **{ml_thr:.2f}** — applies to both LR and XGBoost  \n'
         '- Transaction Cost: **{tc:.1%}** round-trip  \n'
         '- Test Window: **{tw} months** per fold  \n'
-        '- Min Training Period: **{mty} years** — sufficient for LR to converge  \n'
+        '- Min Training Period: **{mty} years**  \n'
         '- Max Positions: **{mp}** — risk constraint  \n'
         '- Max Weight: **{mw:.0%}** — risk constraint  \n'
         '- Initial Capital: **${ic:,.0f}** (display only)'
@@ -89,8 +89,8 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
 
 ### Why some parameters are fixed
 
-- **ML Threshold = {ml_thr:.2f}**: Logistic Regression is theoretically calibrated.
-  Our OOS calibration check confirms the model's probabilities are accurate —
+- **ML Threshold = {ml_thr:.2f}**: shared by both Logistic Regression (L1) and XGBoost.
+  OOS calibration confirms LR probabilities are accurate —
   {ml_thr:.2f} is the chosen threshold. Tuning it further on backtest results is overfitting.
 - **Transaction Cost = 0.1 %**: Realistic round-trip estimate for liquid large-cap US equities.
   It is not a free parameter.
@@ -107,7 +107,7 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
 """,
     'strategy_desc': (
         '**Strategy**: buy when the 5-day return of a stock drops below **{thr:.0f}%**, '
-        'then apply an ML filter (LR probability > {ml_thr:.0%}) to select which signals to trade. '
+        'then apply ML filters (Logistic Regression and XGBoost, probability > {ml_thr:.0%}) to select which signals to trade. '
         'Entry at Open[t+1], exit at Close[t+1].'
     ),
     'no_tickers_err':   'Please select at least one ticker.',
@@ -123,10 +123,10 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
     # ── results section headers ───────────────────────────────────────────────
     'summary_hdr':          '📋 Summary',
     'raw_capital_metric':   'Raw Final Capital',
-    'ml_capital_metric':    'ML Final Capital',
+    'ml_capital_metric':    'LR Final Capital',
     'raw_trades_metric':    'Raw Trades',
-    'ml_trades_metric':     'ML Trades',
-    'folds_hdr':            '🔄 Walk-Forward Fold Results (ML Strategy)',
+    'ml_trades_metric':     'LR Trades',
+    'folds_hdr':            '🔄 Walk-Forward Fold Results (by Model)',
     'folds_caption': (
         'Each row is a separate out-of-sample period with its own freshly-trained model. '
         'Consistent positive returns across folds is stronger evidence than a high overall Sharpe.'
@@ -142,9 +142,9 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
     'equity_sub':           'Equity Curves',
     'yearly_sub':           'Yearly Returns vs SPY',
     'partial_caption':      '* Partial year — backtest started mid-year; not directly comparable to full years.',
-    'drawdown_sub':         'Drawdown — ML Strategy',
-    'pnl_sub':              'Trade P&L Distribution — ML Strategy',
-    'trades_hdr':           '📝 Recent Trades — ML Strategy',
+    'drawdown_sub':         'Drawdown',
+    'pnl_sub':              'Trade P&L Distribution',
+    'trades_hdr':           '📝 Recent Trades',
     'no_trades_info':       'No trades generated — try a less restrictive threshold.',
 
     # ── ML insights ───────────────────────────────────────────────────────────
@@ -230,7 +230,7 @@ _ZH = {
     ),
     'fixed_header':         '**固定參數** *（不可調整）*',
     'fixed_body':           (
-        '- ML 門檻：**{ml_thr:.2f}** — 邏輯回歸自然決策邊界，已由校準驗證  \n'
+        '- ML 門檻：**{ml_thr:.2f}** — LR 與 XGBoost 共用  \n'
         '- 交易成本：**{tc:.1%}** 來回  \n'
         '- 測試窗口：每折 **{tw} 個月**  \n'
         '- 最小訓練期間：**{mty} 年** — LR 收斂所需樣本量已足夠  \n'
@@ -282,8 +282,8 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
 
 ### 為什麼有些參數是固定的
 
-- **ML 門檻 = {ml_thr:.2f}**：邏輯回歸本身就是校準的機器學習模型。
-  我們的 OOS 校準測試確認了模型的機率輸出是準確的——
+- **ML 門檻 = {ml_thr:.2f}**：LR（L1）和 XGBoost 共用同一個門檻。
+  OOS 校準測試確認 LR 機率是可信的——
   {ml_thr:.2f} 是目前使用的門檻。根據回測 Sharpe 進一步調整門檻就是 overfitting。
 - **交易成本 = 0.1%**：大型美股的實際來回成本估算，不是可以優化的參數。
 - **測試窗口 = 12 個月**：業界標準的 walk-forward 步進節奏。
@@ -298,7 +298,7 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
 """,
     'strategy_desc': (
         '**策略**：當股票 5 日報酬率低於 **{thr:.0f}%** 時產生訊號，'
-        '再透過 ML 篩選器（LR 機率 > {ml_thr:.0%}）決定是否進場。'
+        '再透過 ML 篩選器（Logistic Regression 和 XGBoost，機率 > {ml_thr:.0%}）決定是否進場。'
         '進場於 Open[t+1]，出場於 Close[t+1]。'
     ),
     'no_tickers_err':   '請至少選擇一檔股票。',
@@ -314,10 +314,10 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     # ── results section headers ───────────────────────────────────────────────
     'summary_hdr':          '📋 策略摘要',
     'raw_capital_metric':   '原始策略最終資本',
-    'ml_capital_metric':    'ML 策略最終資本',
+    'ml_capital_metric':    'LR 策略最終資本',
     'raw_trades_metric':    '原始策略交易次數',
-    'ml_trades_metric':     'ML 策略交易次數',
-    'folds_hdr':            '🔄 Walk-Forward 各折結果（ML 策略）',
+    'ml_trades_metric':     'LR 策略交易次數',
+    'folds_hdr':            '🔄 Walk-Forward 各折結果（依模型分頁）',
     'folds_caption': (
         '每一折都是獨立的 out-of-sample 期間，使用當折重新訓練的模型。'
         '各折結果一致才具有真正的說服力，整體 Sharpe 高但各折不穩定則不可信。'
@@ -333,9 +333,9 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     'equity_sub':           '資產曲線',
     'yearly_sub':           '年度報酬 vs SPY',
     'partial_caption':      '* 非完整年——回測期間內起訖於年度中，不宜與完整年直接比較。',
-    'drawdown_sub':         'Drawdown — ML 策略',
-    'pnl_sub':              '交易損益分布 — ML 策略',
-    'trades_hdr':           '📝 最近交易記錄 — ML 策略',
+    'drawdown_sub':         'Drawdown',
+    'pnl_sub':              '交易損益分布',
+    'trades_hdr':           '📝 最近交易記錄',
     'no_trades_info':       '未產生任何交易——請嘗試放寬門檻值。',
 
     # ── ML insights ───────────────────────────────────────────────────────────
