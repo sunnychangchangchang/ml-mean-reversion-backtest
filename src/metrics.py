@@ -5,7 +5,7 @@ Provides functions to calculate and display performance metrics.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional, Union
+from typing import Dict, Optional
 
 
 

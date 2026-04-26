@@ -14,7 +14,7 @@ logger = logging.getLogger(__name__)
 def generate_signals(
     df: pd.DataFrame,
     return_threshold: float = -0.05,
-    ml_prob_threshold: float = 0.50,
+    ml_prob_threshold: float = 0.55,
 ) -> pd.DataFrame:
     """
     Generate ML-filtered trading signals.
@@ -106,7 +106,7 @@ def run_backtest(
     if len(signals) == 0:
         logger.warning("No trading signals generated!")
         return pd.DataFrame(), pd.DataFrame(), calculate_metrics(
-            pd.DataFrame(), pd.DataFrame(), initial_capital, transaction_cost,
+            pd.DataFrame(), pd.DataFrame(), initial_capital,
             trade_days=0, risk_free_rate=risk_free_rate,
         )
 
@@ -203,7 +203,6 @@ def run_backtest(
         complete_equity_df,
         trades_df,
         initial_capital,
-        transaction_cost,
         trade_days=len(equity_df),
         risk_free_rate=risk_free_rate,
     )
@@ -220,20 +219,7 @@ def run_backtest_raw(
     return_threshold: float = -0.05,
     risk_free_rate: float = 0.0,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
-    """
-    Run backtest for raw strategy (without ML filter).
-    
-    Args:
-        df: DataFrame with features
-        initial_capital: Initial capital
-        max_positions: Max positions
-        max_weight: Max weight per position
-        transaction_cost: Transaction cost
-        return_threshold: Mean reversion threshold
-    
-    Returns:
-        Tuple of (equity_curve, trade_log, metrics)
-    """
+    """Run backtest for raw strategy (no ML filter). Ranks signals by absolute 5-day drop."""
     # Generate raw signal; rank by magnitude of the 5-day drop (no ML used)
     df = df.copy()
     df['raw_signal'] = (df['return_5d'] < return_threshold).astype(int)
@@ -261,21 +247,7 @@ def run_backtest_ml(
     ml_prob_threshold: float = 0.55,
     risk_free_rate: float = 0.0,
 ) -> Tuple[pd.DataFrame, pd.DataFrame, Dict]:
-    """
-    Run backtest for ML-filtered strategy.
-    
-    Args:
-        df: DataFrame with features and ML probabilities
-        initial_capital: Initial capital
-        max_positions: Max positions
-        max_weight: Max weight per position
-        transaction_cost: Transaction cost
-        return_threshold: Mean reversion threshold
-        ml_prob_threshold: ML probability threshold
-    
-    Returns:
-        Tuple of (equity_curve, trade_log, metrics)
-    """
+    """Run backtest for ML-filtered strategy. Ranks signals by ml_probability."""
     # Generate signals with ML filter
     df = generate_signals(
         df,
@@ -298,22 +270,10 @@ def calculate_metrics(
     equity_df: pd.DataFrame,
     trades_df: pd.DataFrame,
     initial_capital: float,
-    transaction_cost: float,
     trade_days: int = None,
     risk_free_rate: float = 0.0,
 ) -> Dict:
-    """
-    Calculate performance metrics.
-    
-    Args:
-        equity_df: DataFrame with equity curve
-        trades_df: DataFrame with trade log
-        initial_capital: Initial capital
-        transaction_cost: Transaction cost per trade
-    
-    Returns:
-        Dictionary of metrics
-    """
+    """Calculate performance metrics from a complete equity curve and trade log."""
     if len(equity_df) == 0 or len(trades_df) == 0:
         return {
             'cumulative_return': 0.0,

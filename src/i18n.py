@@ -111,8 +111,10 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
     'summary_hdr':          '📋 Summary',
     'raw_capital_metric':   'Raw Final Capital',
     'ml_capital_metric':    'LR Final Capital',
+    'xgb_capital_metric':   'XGBoost Final Capital',
     'raw_trades_metric':    'Raw Trades',
     'ml_trades_metric':     'LR Trades',
+    'xgb_trades_metric':    'XGBoost Trades',
     'folds_hdr':            '🔄 Walk-Forward Fold Results (by Model)',
     'folds_caption': (
         'Each row is a separate out-of-sample period with its own freshly-trained model. '
@@ -258,8 +260,10 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     'summary_hdr':          '📋 策略摘要',
     'raw_capital_metric':   '原始策略最終資本',
     'ml_capital_metric':    'LR 策略最終資本',
+    'xgb_capital_metric':   'XGBoost 策略最終資本',
     'raw_trades_metric':    '原始策略交易次數',
     'ml_trades_metric':     'LR 策略交易次數',
+    'xgb_trades_metric':    'XGBoost 策略交易次數',
     'folds_hdr':            '🔄 Walk-Forward 各折結果（依模型分頁）',
     'folds_caption': (
         '每一折都是獨立的 out-of-sample 期間，使用當折重新訓練的模型。'

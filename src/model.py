@@ -21,7 +21,7 @@ def train_model(
     feature_columns: List[str],
     train_cutoff_date: str,
     model_type: str = 'lr',
-) -> Tuple[Model, StandardScaler, pd.DataFrame]:
+) -> Tuple[Model, StandardScaler]:
     """
     Train a classification model using a chronological split.
 
@@ -32,7 +32,7 @@ def train_model(
         model_type: 'lr' for Logistic Regression, 'xgb' for XGBoost
 
     Returns:
-        Tuple of (trained model, fitted scaler, training data)
+        Tuple of (trained model, fitted scaler)
     """
     model_data = df.dropna(subset=feature_columns + ['target'])
 
@@ -86,7 +86,7 @@ def train_model(
         raise ValueError(f"Unknown model_type '{model_type}'. Use 'lr' or 'xgb'.")
 
     logger.info(f"[{model_type.upper()}] trained on {len(X_train)} samples up to {train_cutoff_date}")
-    return model, scaler, train_data
+    return model, scaler
 
 
 def predict_proba(

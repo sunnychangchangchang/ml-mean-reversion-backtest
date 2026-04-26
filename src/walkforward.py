@@ -3,7 +3,6 @@ Walk-forward validation module.
 Retrains model at each fold boundary; capital carries over between folds.
 """
 
-import numpy as np
 import pandas as pd
 import logging
 from typing import List, Tuple, Dict, Optional
@@ -110,7 +109,7 @@ def run_walk_forward(
             # Train on all history up to fold boundary, then predict on test window only
             train_end_str = fold['train_end'].strftime('%Y-%m-%d')
             try:
-                fold_model, fold_scaler, _ = train_model(df, feature_cols, train_end_str, model_type)
+                fold_model, fold_scaler = train_model(df, feature_cols, train_end_str, model_type)
                 df_test_preds = predict_proba(fold_model, fold_scaler, df_test, feature_cols)
             except ValueError as e:
                 logger.warning(f"Walk-forward fold {i + 1}: skipping — {e}")
@@ -164,7 +163,6 @@ def run_walk_forward(
         complete_equity_df,
         combined_trades,
         initial_capital,
-        transaction_cost,
         trade_days=len(combined_equity),
         risk_free_rate=risk_free_rate,
     )

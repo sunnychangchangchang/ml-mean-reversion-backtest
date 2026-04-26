@@ -2,6 +2,8 @@
 Streamlit UI for ML-Enhanced Mean Reversion Strategy.
 """
 
+import traceback
+
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -165,8 +167,8 @@ def main():
             df_backtest_period = df[
                 df.index.get_level_values('Date') >= pd.Timestamp(backtest_start)
             ]
-            ref_lr_model,  _, _ = model.train_model(df, feature_cols, backtest_start, 'lr')
-            ref_xgb_model, _, _ = model.train_model(df, feature_cols, backtest_start, 'xgb')
+            ref_lr_model,  _ = model.train_model(df, feature_cols, backtest_start, 'lr')
+            ref_xgb_model, _ = model.train_model(df, feature_cols, backtest_start, 'xgb')
             st.success(T['wf_ok'])
 
             spy_equity    = metrics.compute_spy_equity(spy_close, INITIAL_CAPITAL, backtest_start)
@@ -185,11 +187,11 @@ def main():
                         f"${raw_metrics_dict.get('final_capital', 0):,.0f}")
             col2.metric(T['ml_capital_metric'],
                         f"${lr_metrics_dict.get('final_capital', 0):,.0f}")
-            col3.metric('XGBoost Final Capital',
+            col3.metric(T['xgb_capital_metric'],
                         f"${xgb_metrics_dict.get('final_capital', 0):,.0f}")
             col4.metric(T['raw_trades_metric'], int(raw_metrics_dict.get('trade_count', 0)))
             col5.metric(T['ml_trades_metric'],  int(lr_metrics_dict.get('trade_count', 0)))
-            col6.metric('XGBoost Trades',       int(xgb_metrics_dict.get('trade_count', 0)))
+            col6.metric(T['xgb_trades_metric'], int(xgb_metrics_dict.get('trade_count', 0)))
 
             st.divider()
             st.header(T['folds_hdr'])
@@ -288,7 +290,6 @@ def main():
 
         except Exception as e:
             st.error(f"Error: {e}")
-            import traceback
             st.code(traceback.format_exc())
 
     st.divider()

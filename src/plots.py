@@ -6,7 +6,6 @@ Creates charts for equity curves, drawdowns, and trade distributions.
 import pandas as pd
 import numpy as np
 import plotly.graph_objects as go
-from typing import Dict, Tuple
 
 
 def plot_equity_curves(

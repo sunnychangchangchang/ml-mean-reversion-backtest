@@ -5,7 +5,6 @@ Priority: Cache → Yahoo Finance
 
 import yfinance as yf
 import pandas as pd
-import numpy as np
 from typing import List, Optional
 from datetime import datetime
 import time
@@ -122,16 +121,3 @@ def download_data(
         raise ValueError("No data downloaded for any ticker")
 
     return pd.concat(data_frames)
-
-
-
-def clear_cache(ticker: Optional[str] = None) -> None:
-    if ticker:
-        cache_path = _get_cache_path(ticker)
-        if cache_path.exists():
-            cache_path.unlink()
-            logger.info(f"Cleared cache for {ticker}")
-    else:
-        for cache_file in CACHE_DIR.glob("*.csv"):
-            cache_file.unlink()
-        logger.info("Cleared all cache")
