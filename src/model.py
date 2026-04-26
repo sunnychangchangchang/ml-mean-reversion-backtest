@@ -1,6 +1,6 @@
 """
 Machine learning module.
-Trains Logistic Regression to predict intraday direction.
+Supports Logistic Regression (L1) and XGBoost for intraday direction prediction.
 """
 
 import pandas as pd
@@ -9,129 +9,132 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.preprocessing import StandardScaler
 from sklearn.calibration import calibration_curve
 from sklearn.metrics import brier_score_loss
+from xgboost import XGBClassifier
 import logging
-from typing import List, Tuple, Dict, Optional
+from typing import List, Tuple, Dict, Optional, Union
 
 logger = logging.getLogger(__name__)
+
+Model = Union[LogisticRegression, XGBClassifier]
 
 
 def train_model(
     df: pd.DataFrame,
     feature_columns: List[str],
-    train_cutoff_date: str
-) -> Tuple[LogisticRegression, StandardScaler, pd.DataFrame]:
+    train_cutoff_date: str,
+    model_type: str = 'lr',
+) -> Tuple[Model, StandardScaler, pd.DataFrame]:
     """
-    Train Logistic Regression model using chronological split.
-    
-    IMPORTANT: No look-ahead bias - we only use data available up to day t
-    to predict day t+1 outcomes.
-    
+    Train a classification model using a chronological split.
+
     Args:
         df: DataFrame with features and target
         feature_columns: List of feature column names
         train_cutoff_date: Date string for train/test split (YYYY-MM-DD)
-    
+        model_type: 'lr' for Logistic Regression, 'xgb' for XGBoost
+
     Returns:
         Tuple of (trained model, fitted scaler, training data)
     """
-    # Drop rows with NaN in features or target
     model_data = df.dropna(subset=feature_columns + ['target'])
-    
-    # Split by date (chronological, no shuffling)
+
     train_data = model_data[model_data.index.get_level_values('Date') < train_cutoff_date]
-    test_data = model_data[model_data.index.get_level_values('Date') >= train_cutoff_date]
-    
+    test_data  = model_data[model_data.index.get_level_values('Date') >= train_cutoff_date]
+
     if len(train_data) == 0:
         raise ValueError("No training data available")
-    
     if len(test_data) == 0:
         raise ValueError("No test data available")
-    
-    # Prepare features and target
+
     X_train = train_data[feature_columns].values
     y_train = train_data['target'].values
-    
-    # Scale features
+
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
-    
-    # Train model — L1 penalty lets the model zero out irrelevant features automatically.
-    # liblinear is required for L1; C=0.5 provides moderate regularization strength.
-    model = LogisticRegression(
-        penalty='l1',
-        C=0.5,
-        solver='liblinear',
-        random_state=42,
-        max_iter=1000,
-    )
-    model.fit(X_train_scaled, y_train)
-    
-    logger.info(f"Training samples: {len(X_train)}")
-    logger.info(f"Training date range: {train_data.index.get_level_values('Date').min()} to {train_data.index.get_level_values('Date').max()}")
-    
+
+    if model_type == 'lr':
+        # L1 penalty automatically zeros out irrelevant features.
+        # liblinear is required for L1; C=0.5 = moderate regularization.
+        model = LogisticRegression(
+            penalty='l1',
+            C=0.5,
+            solver='liblinear',
+            random_state=42,
+            max_iter=1000,
+        )
+        model.fit(X_train_scaled, y_train)
+
+    elif model_type == 'xgb':
+        # Shallow trees + shrinkage to control overfitting on financial data.
+        # XGBoost is scale-invariant but we still use the scaler for a
+        # consistent interface with the LR path.
+        model = XGBClassifier(
+            n_estimators=300,
+            max_depth=3,
+            learning_rate=0.05,
+            subsample=0.8,
+            colsample_bytree=0.8,
+            eval_metric='logloss',
+            random_state=42,
+            verbosity=0,
+        )
+        model.fit(X_train_scaled, y_train)
+
+    else:
+        raise ValueError(f"Unknown model_type '{model_type}'. Use 'lr' or 'xgb'.")
+
+    logger.info(f"[{model_type.upper()}] trained on {len(X_train)} samples up to {train_cutoff_date}")
     return model, scaler, train_data
 
 
 def predict_proba(
-    model: LogisticRegression,
+    model: Model,
     scaler: StandardScaler,
     df: pd.DataFrame,
-    feature_columns: List[str]
+    feature_columns: List[str],
 ) -> pd.DataFrame:
     """
-    Generate prediction probabilities for all data points.
-    
-    Args:
-        model: Trained Logistic Regression model
-        scaler: Fitted StandardScaler
-        df: DataFrame with features
-        feature_columns: List of feature column names
-    
+    Generate prediction probabilities. Works for both LR and XGBoost.
+
     Returns:
-        DataFrame with probability predictions
+        DataFrame with ml_probability column added.
     """
-    # Drop rows with NaN in features
     pred_data = df.dropna(subset=feature_columns)
-    
     if len(pred_data) == 0:
         raise ValueError("No data available for prediction")
-    
-    # Prepare features
+
     X = pred_data[feature_columns].values
     X_scaled = scaler.transform(X)
-    
-    # Get probability of class 1 (Close[t+1] > Open[t+1])
     proba = model.predict_proba(X_scaled)[:, 1]
-    
-    # Add predictions to dataframe
+
     result = pred_data.copy()
     result['ml_probability'] = proba
-    
     return result
 
 
 def get_feature_importance(
-    model: LogisticRegression,
-    feature_columns: List[str]
+    model: Model,
+    feature_columns: List[str],
 ) -> pd.DataFrame:
     """
-    Get feature importance (coefficients) from Logistic Regression.
-    
-    Args:
-        model: Trained Logistic Regression model
-        feature_columns: List of feature column names
-    
-    Returns:
-        DataFrame with feature names and coefficients
+    Return feature importance for LR (coefficients) or XGBoost (gain-based).
+    Column names differ so the UI can label them appropriately.
     """
-    importance = pd.DataFrame({
-        'feature': feature_columns,
-        'coefficient': model.coef_[0]
-    })
-    importance['abs_coefficient'] = importance['coefficient'].abs()
-    importance = importance.sort_values('abs_coefficient', ascending=False)
-
-    return importance
+    if hasattr(model, 'coef_'):
+        # Logistic Regression
+        importance = pd.DataFrame({
+            'feature': feature_columns,
+            'coefficient': model.coef_[0],
+        })
+        importance['abs_coefficient'] = importance['coefficient'].abs()
+        return importance.sort_values('abs_coefficient', ascending=False)
+    else:
+        # XGBoost — feature_importances_ uses 'gain' by default in sklearn API
+        importance = pd.DataFrame({
+            'feature': feature_columns,
+            'importance': model.feature_importances_,
+        })
+        return importance.sort_values('importance', ascending=False)
 
 
 def check_calibration_oos(
@@ -142,7 +145,6 @@ def check_calibration_oos(
     """
     Check calibration using out-of-sample walk-forward predictions.
     proba / actual are collected across all test folds — fully OOS.
-    This is more rigorous than in-sample calibration on training data.
     """
     if len(proba) == 0:
         return None
@@ -160,25 +162,13 @@ def check_calibration_oos(
 
 
 def check_calibration(
-    model: LogisticRegression,
+    model: Model,
     scaler: StandardScaler,
     df: pd.DataFrame,
     feature_columns: List[str],
     n_bins: int = 10,
 ) -> Optional[Dict]:
-    """
-    Check probability calibration on df (typically the training split).
-
-    Logistic Regression minimises log-loss (a proper scoring rule), so it is
-    theoretically well-calibrated. This function provides empirical evidence
-    to support — or challenge — using 0.5 as the decision threshold.
-
-    Returns a dict with:
-      fraction_of_positives  : actual positive rate per probability bin
-      mean_predicted_value   : mean predicted probability per bin
-      brier_score            : mean squared error of probabilities (lower = better)
-      ece                    : Expected Calibration Error (mean |pred - actual|)
-    """
+    """Check probability calibration on df (typically the training split)."""
     valid = df.dropna(subset=feature_columns + ['target'])
     if len(valid) == 0:
         return None
@@ -187,9 +177,7 @@ def check_calibration(
     y = valid['target'].values
     proba = model.predict_proba(X)[:, 1]
 
-    frac_pos, mean_pred = calibration_curve(
-        y, proba, n_bins=n_bins, strategy='quantile'
-    )
+    frac_pos, mean_pred = calibration_curve(y, proba, n_bins=n_bins, strategy='quantile')
     brier = float(brier_score_loss(y, proba))
     ece = float(np.mean(np.abs(frac_pos - mean_pred)))
 

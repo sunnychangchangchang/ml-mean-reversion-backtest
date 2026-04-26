@@ -7,7 +7,7 @@ Build a transparent quant research workflow for a short-horizon US equity mean-r
 The implementation must satisfy four requirements:
 
 - The trading hypothesis is explicit and not data-mined inside the UI.
-- The ML model is a filter, not a black-box alpha engine.
+- ML models act as filters, not black-box alpha engines.
 - All model predictions used in the reported backtest are out-of-sample.
 - Portfolio returns reflect execution timing, transaction costs, concentration limits, and inactive cash days.
 
@@ -69,8 +69,6 @@ Data loading behavior:
 4. Save successful downloads back to `data/cache/`.
 5. `Refresh Data` bypasses the cache and forces a new download.
 
-The current implementation does not use Stooq. `pandas-datareader` remains in dependencies but is not part of the active data path.
-
 ## Features
 
 All features are computed per ticker using information available by the close of day `t`.
@@ -78,25 +76,31 @@ All features are computed per ticker using information available by the close of
 | Feature | Definition |
 | --- | --- |
 | `return_1d` | 1-day close-to-close return |
-| `return_5d` | 5-day close-to-close return, used as the raw signal trigger |
+| `return_5d` | 5-day close-to-close return — raw signal trigger only, excluded from ML features |
+| `return_10d` | 10-day close-to-close return |
 | `volatility_5d` | 5-day rolling standard deviation of `return_1d` |
 | `volatility_10d` | 10-day rolling standard deviation of `return_1d` |
-| `volume_zscore` | 20-day z-score of volume |
 | `rsi_14` | 14-day RSI using Wilder smoothing |
-| `distance_ma20` | `(Close - MA20) / MA20` |
+| `distance_ma20` | `(Close − MA20) / MA20` |
+| `distance_ma200` | `(Close − MA200) / MA200` |
+| `gap_open` | `(Open[t] − Close[t−1]) / Close[t−1]` — overnight gap at entry day open |
 
 ML feature columns:
 
 ```text
 return_1d
+return_10d
 volatility_5d
 volatility_10d
-volume_zscore
 rsi_14
 distance_ma20
+distance_ma200
+gap_open
 ```
 
 `return_5d` is excluded from ML features because it is the signal definition. This keeps the classifier from simply relearning the entry rule.
+
+Feature selection rationale: L1 regularization on Logistic Regression was used to confirm that all retained features carry non-zero predictive weight. Features zeroed by L1 (e.g., `volume_zscore`, `distance_ma50`) were removed.
 
 ## Target
 
@@ -109,30 +113,43 @@ target[t] = 0 if Close[t+1] <= Open[t+1]
 
 If `Open[t+1]` or `Close[t+1]` is unavailable, `target[t] = NaN`.
 
-Rows with missing feature values or missing targets are excluded from model training and calibration. Rows with valid features may still receive a live-style probability estimate even when the next outcome is not yet known.
+Rows with missing feature values or missing targets are excluded from model training and calibration.
 
-## Model
+## Models
 
-Model:
+Two ML models are trained and compared in parallel walk-forward runs:
+
+### Logistic Regression (L1)
 
 ```text
-StandardScaler + LogisticRegression
+StandardScaler + LogisticRegression(penalty='l1', C=0.5, solver='liblinear')
 ```
 
 Rationale:
-
 - Interpretable coefficients.
-- Native probability output.
+- L1 penalty automatically zeroes out uninformative features.
+- Native calibrated probability output.
 - Fast retraining in walk-forward validation.
-- Lower overfitting risk than complex nonlinear models on a small universe.
+
+### XGBoost
+
+```text
+StandardScaler + XGBClassifier(max_depth=3, n_estimators=300, learning_rate=0.05,
+                                subsample=0.8, colsample_bytree=0.8)
+```
+
+Rationale:
+- Captures non-linear interactions between features that LR cannot model.
+- Shallow trees (max_depth=3) reduce overfitting on a small financial dataset.
+- Provides a performance ceiling comparison against the interpretable baseline.
 
 The ML probability threshold is fixed:
 
 ```text
-0.50
+0.55
 ```
 
-This is the natural decision boundary for a calibrated binary classifier. It is evaluated using out-of-sample walk-forward calibration rather than optimized on realized trading performance.
+This is above the 0.50 natural decision boundary to filter for higher-confidence trades. It is evaluated using out-of-sample walk-forward calibration rather than optimized on realized trading performance.
 
 ## Signal Logic
 
@@ -142,16 +159,16 @@ Raw strategy:
 raw_signal[t] = return_5d[t] < threshold
 ```
 
-ML-filtered strategy:
+ML-filtered strategy (applied identically to both LR and XGBoost):
 
 ```text
-signal[t] = raw_signal[t] and ml_probability[t] > 0.50
+signal[t] = raw_signal[t] and ml_probability[t] > 0.55
 ```
 
 If the number of valid signals exceeds `max_positions`:
 
 - Raw strategy ranks candidates by absolute 5-day decline magnitude.
-- ML strategy ranks candidates by `ml_probability`.
+- ML strategies rank candidates by `ml_probability`.
 
 ## Execution Assumptions
 
@@ -182,7 +199,7 @@ Close[t+1] / Open[t+1] - 1
 Net trade return:
 
 ```text
-gross_trade_return - transaction_cost
+gross_trade_return - 2 × one_way_transaction_cost
 ```
 
 Default round-trip cost:
@@ -237,7 +254,7 @@ For each fold:
 4. Carry ending capital into the next fold.
 5. Store fold-level metrics for consistency analysis.
 
-The reported ML backtest is stitched from out-of-sample predictions only.
+The reported ML backtest is stitched from out-of-sample predictions only. Both LR and XGBoost are retrained independently at each fold boundary.
 
 ## Metrics
 
@@ -246,8 +263,8 @@ Primary metrics:
 - Cumulative return
 - Annualized return
 - Annualized volatility
-- All-period Sharpe ratio
-- Active-period Sharpe ratio
+- All-period Sharpe ratio (flat cash days included)
+- Active-period Sharpe ratio (annualized by actual active-days-per-year, not 252)
 - Max drawdown
 - Win rate
 - Trade count
@@ -257,11 +274,11 @@ Primary metrics:
 
 Additional diagnostics:
 
-- Fold-level return, Sharpe, drawdown, win rate, and trade count.
-- Calendar-year returns for raw strategy, ML strategy, and SPY.
-- Trade P&L distribution.
-- Logistic Regression coefficient table.
-- Out-of-sample calibration curve.
+- Fold-level return, Sharpe, drawdown, win rate, and trade count (per model).
+- Calendar-year returns for raw strategy, LR strategy, XGBoost strategy, and SPY.
+- Trade P&L distribution (per model).
+- LR coefficient table; XGBoost feature importance (gain).
+- Out-of-sample calibration curve (per model).
 - Expected Calibration Error.
 - Brier score versus random baseline.
 
@@ -276,33 +293,33 @@ Sidebar controls:
 - Use Cache.
 - Refresh Data.
 - Mean Reversion Threshold.
-- Max Concurrent Positions.
-- Max Weight per Position.
 - Annual Risk-Free Rate.
 
-Fixed in UI:
+Fixed in UI (not exposed to prevent overfitting):
 
 - Initial capital.
 - ML probability threshold.
 - Transaction cost.
 - Test window length.
 - Minimum training years.
+- Max concurrent positions.
+- Max weight per position.
 
 Main page:
 
 - Survivorship-bias warning.
 - Correct-use guide.
 - Strategy description.
-- Summary metrics.
-- Walk-forward fold table.
-- Raw versus ML metric comparison.
-- Equity curves with SPY.
+- Summary metrics (Raw / LR / XGBoost).
+- Walk-forward fold tables (tabbed by model).
+- Raw vs LR vs XGBoost metric comparison.
+- Equity curves with SPY (three strategy lines).
 - Yearly return bars.
-- ML drawdown.
-- ML trade P&L distribution.
-- Recent ML trades.
-- OOS calibration diagnostics.
-- Feature importance.
+- Drawdown charts (tabbed by model).
+- Trade P&L distributions (tabbed by model).
+- Recent trades (tabbed by model).
+- OOS calibration diagnostics (tabbed by model).
+- Feature importance (tabbed: LR coefficients / XGBoost gain).
 
 ## Bias Controls
 
@@ -315,15 +332,16 @@ Look-ahead control:
 
 Overfitting control:
 
-- ML threshold is fixed at `0.50`.
+- ML threshold is fixed at `0.55`.
 - Transaction cost is fixed.
 - Test window length is fixed.
+- Portfolio constraints are fixed.
 - Threshold changes should be interpreted as robustness checks, not optimization.
 
 Reporting control:
 
 - Metrics are calculated on complete daily equity curves with flat cash days included.
-- Active-period Sharpe is reported separately to isolate performance on deployed capital.
+- Active-period Sharpe is annualized by actual active-days-per-year to avoid inflation from low exposure ratios.
 
 ## Limitations
 

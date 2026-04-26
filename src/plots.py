@@ -11,11 +11,12 @@ from typing import Dict, Tuple
 
 def plot_equity_curves(
     raw_equity: pd.DataFrame,
-    ml_equity: pd.DataFrame,
+    lr_equity: pd.DataFrame,
     initial_capital: float = 100000,
     spy_equity: pd.DataFrame = None,
+    xgb_equity: pd.DataFrame = None,
 ) -> go.Figure:
-    """Plot equity curves for both strategies plus optional SPY benchmark."""
+    """Plot equity curves for Raw, LR, optional XGBoost, and SPY benchmark."""
     fig = go.Figure()
 
     if len(raw_equity) > 0:
@@ -25,11 +26,18 @@ def plot_equity_curves(
             line=dict(color='steelblue', width=2)
         ))
 
-    if len(ml_equity) > 0:
+    if lr_equity is not None and len(lr_equity) > 0:
         fig.add_trace(go.Scatter(
-            x=ml_equity['date'], y=ml_equity['capital'],
-            mode='lines', name='ML Strategy',
+            x=lr_equity['date'], y=lr_equity['capital'],
+            mode='lines', name='LR (L1)',
             line=dict(color='seagreen', width=2)
+        ))
+
+    if xgb_equity is not None and len(xgb_equity) > 0:
+        fig.add_trace(go.Scatter(
+            x=xgb_equity['date'], y=xgb_equity['capital'],
+            mode='lines', name='XGBoost',
+            line=dict(color='mediumpurple', width=2)
         ))
 
     if spy_equity is not None and len(spy_equity) > 0:

@@ -5,23 +5,17 @@ Provides functions to calculate and display performance metrics.
 
 import pandas as pd
 import numpy as np
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 
 
 def compare_strategies(
     raw_metrics: Dict,
-    ml_metrics: Dict
+    lr_metrics: Dict,
+    xgb_metrics: Optional[Dict] = None,
 ) -> pd.DataFrame:
     """
-    Compare raw and ML-filtered strategy metrics.
-    
-    Args:
-        raw_metrics: Metrics from raw strategy
-        ml_metrics: Metrics from ML-filtered strategy
-    
-    Returns:
-        DataFrame comparing both strategies
+    Compare Raw, LR, and optionally XGBoost strategy metrics.
     """
     metric_names = {
         'cumulative_return': 'Cumulative Return',
@@ -33,35 +27,33 @@ def compare_strategies(
         'win_rate': 'Win Rate',
         'trade_count': 'Trade Count',
         'avg_trade_return': 'Avg Trade Return',
-        'exposure_ratio': 'Exposure Ratio'
+        'exposure_ratio': 'Exposure Ratio',
     }
 
+    pct_keys = {'cumulative_return', 'annualized_return', 'max_drawdown',
+                'win_rate', 'avg_trade_return', 'exposure_ratio', 'volatility'}
+    float_keys = {'sharpe_ratio', 'active_sharpe'}
+
+    def _fmt(val, key):
+        if key in pct_keys:
+            return f"{val:.2%}"
+        if key in float_keys:
+            return f"{val:.2f}"
+        if key == 'trade_count':
+            return f"{int(val)}"
+        return str(val)
+
     rows = []
-
     for key, label in metric_names.items():
-        raw_val = raw_metrics.get(key, 0)
-        ml_val = ml_metrics.get(key, 0)
-
-        if key in ['cumulative_return', 'annualized_return', 'max_drawdown',
-                   'win_rate', 'avg_trade_return', 'exposure_ratio', 'volatility']:
-            raw_fmt = f"{raw_val:.2%}"
-            ml_fmt = f"{ml_val:.2%}"
-        elif key in ['sharpe_ratio', 'active_sharpe']:
-            raw_fmt = f"{raw_val:.2f}"
-            ml_fmt = f"{ml_val:.2f}"
-        elif key == 'trade_count':
-            raw_fmt = f"{int(raw_val)}"
-            ml_fmt = f"{int(ml_val)}"
-        else:
-            raw_fmt = str(raw_val)
-            ml_fmt = str(ml_val)
-        
-        rows.append({
+        row = {
             'Metric': label,
-            'Raw Strategy': raw_fmt,
-            'ML Strategy': ml_fmt
-        })
-    
+            'Raw': _fmt(raw_metrics.get(key, 0), key),
+            'LR (L1)': _fmt(lr_metrics.get(key, 0), key),
+        }
+        if xgb_metrics is not None:
+            row['XGBoost'] = _fmt(xgb_metrics.get(key, 0), key)
+        rows.append(row)
+
     return pd.DataFrame(rows)
 
 

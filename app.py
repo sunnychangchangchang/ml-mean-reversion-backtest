@@ -151,8 +151,12 @@ def main():
             )
             raw_equity, raw_trades, raw_metrics_dict, raw_folds, _ = \
                 walkforward.run_walk_forward(df, ml_prob_threshold=None, **wf_kwargs)
-            ml_equity, ml_trades, ml_metrics_dict, ml_folds, oos_preds = \
-                walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD, **wf_kwargs)
+            lr_equity, lr_trades, lr_metrics_dict, lr_folds, lr_oos_preds = \
+                walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
+                                             model_type='lr', **wf_kwargs)
+            xgb_equity, xgb_trades, xgb_metrics_dict, xgb_folds, xgb_oos_preds = \
+                walkforward.run_walk_forward(df, ml_prob_threshold=ML_PROB_THRESHOLD,
+                                             model_type='xgb', **wf_kwargs)
 
             backtest_start = (
                 pd.Timestamp(start_date) + pd.DateOffset(years=MIN_TRAIN_YEARS)
@@ -160,85 +164,116 @@ def main():
             df_backtest_period = df[
                 df.index.get_level_values('Date') >= pd.Timestamp(backtest_start)
             ]
-            ref_model, ref_scaler, ref_train_data = model.train_model(
-                df, feature_cols, backtest_start
+            ref_lr_model,  ref_lr_scaler,  ref_train_data = model.train_model(
+                df, feature_cols, backtest_start, model_type='lr'
+            )
+            ref_xgb_model, ref_xgb_scaler, _ = model.train_model(
+                df, feature_cols, backtest_start, model_type='xgb'
             )
             st.success(T['wf_ok'])
 
-            spy_equity   = metrics.compute_spy_equity(spy_close, INITIAL_CAPITAL, backtest_start)
-            raw_complete = metrics.get_complete_equity(raw_equity, df_backtest_period, INITIAL_CAPITAL)
-            ml_complete  = metrics.get_complete_equity(ml_equity,  df_backtest_period, INITIAL_CAPITAL)
-            raw_yearly   = metrics.get_yearly_returns(raw_complete)
-            ml_yearly    = metrics.get_yearly_returns(ml_complete)
-            spy_yearly   = metrics.get_yearly_returns(spy_equity)
+            spy_equity    = metrics.compute_spy_equity(spy_close, INITIAL_CAPITAL, backtest_start)
+            raw_complete  = metrics.get_complete_equity(raw_equity,  df_backtest_period, INITIAL_CAPITAL)
+            lr_complete   = metrics.get_complete_equity(lr_equity,   df_backtest_period, INITIAL_CAPITAL)
+            xgb_complete  = metrics.get_complete_equity(xgb_equity,  df_backtest_period, INITIAL_CAPITAL)
+            raw_yearly    = metrics.get_yearly_returns(raw_complete)
+            lr_yearly     = metrics.get_yearly_returns(lr_complete)
+            xgb_yearly    = metrics.get_yearly_returns(xgb_complete)
+            spy_yearly    = metrics.get_yearly_returns(spy_equity)
 
             # ── Results ───────────────────────────────────────────────────────
             st.header(T['summary_hdr'])
-            col1, col2, col3, col4 = st.columns(4)
+            col1, col2, col3, col4, col5, col6 = st.columns(6)
             col1.metric(T['raw_capital_metric'],
                         f"${raw_metrics_dict.get('final_capital', 0):,.0f}")
             col2.metric(T['ml_capital_metric'],
-                        f"${ml_metrics_dict.get('final_capital', 0):,.0f}")
-            col3.metric(T['raw_trades_metric'], int(raw_metrics_dict.get('trade_count', 0)))
-            col4.metric(T['ml_trades_metric'],  int(ml_metrics_dict.get('trade_count', 0)))
+                        f"${lr_metrics_dict.get('final_capital', 0):,.0f}")
+            col3.metric('XGBoost Final Capital',
+                        f"${xgb_metrics_dict.get('final_capital', 0):,.0f}")
+            col4.metric(T['raw_trades_metric'], int(raw_metrics_dict.get('trade_count', 0)))
+            col5.metric(T['ml_trades_metric'],  int(lr_metrics_dict.get('trade_count', 0)))
+            col6.metric('XGBoost Trades',       int(xgb_metrics_dict.get('trade_count', 0)))
 
             st.divider()
             st.header(T['folds_hdr'])
             st.caption(T['folds_caption'])
-            if ml_folds:
-                st.dataframe(_format_fold_table(ml_folds),
-                             use_container_width=True, hide_index=True)
-            else:
-                st.info(T['no_folds_info'])
+            tab_lr, tab_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+            with tab_lr:
+                if lr_folds:
+                    st.dataframe(_format_fold_table(lr_folds),
+                                 use_container_width=True, hide_index=True)
+                else:
+                    st.info(T['no_folds_info'])
+            with tab_xgb:
+                if xgb_folds:
+                    st.dataframe(_format_fold_table(xgb_folds),
+                                 use_container_width=True, hide_index=True)
+                else:
+                    st.info(T['no_folds_info'])
 
             st.divider()
             st.header(T['metrics_hdr'])
             st.caption(T['metrics_caption'])
-            st.dataframe(metrics.compare_strategies(raw_metrics_dict, ml_metrics_dict),
-                         use_container_width=True, hide_index=True)
+            st.dataframe(
+                metrics.compare_strategies(raw_metrics_dict, lr_metrics_dict, xgb_metrics_dict),
+                use_container_width=True, hide_index=True
+            )
 
             st.divider()
             st.header(T['viz_hdr'])
 
             st.subheader(T['equity_sub'])
             st.plotly_chart(
-                plots.plot_equity_curves(raw_equity, ml_equity, INITIAL_CAPITAL,
-                                         spy_equity=spy_equity),
+                plots.plot_equity_curves(raw_equity, lr_equity, INITIAL_CAPITAL,
+                                         spy_equity=spy_equity, xgb_equity=xgb_equity),
                 use_container_width=True
             )
 
             st.subheader(T['yearly_sub'])
             st.plotly_chart(
-                plots.plot_yearly_returns(raw_yearly, ml_yearly, spy_yearly),
+                plots.plot_yearly_returns(raw_yearly, lr_yearly, spy_yearly),
                 use_container_width=True
             )
-            if ml_yearly is not None and ml_yearly.get('Partial', pd.Series()).any():
+            if lr_yearly is not None and lr_yearly.get('Partial', pd.Series()).any():
                 st.caption(T['partial_caption'])
 
             col1, col2 = st.columns(2)
             with col1:
                 st.subheader(T['drawdown_sub'])
-                st.plotly_chart(plots.plot_drawdowns(ml_equity, "ML Strategy"),
-                                use_container_width=True)
+                tab_dd_lr, tab_dd_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+                with tab_dd_lr:
+                    st.plotly_chart(plots.plot_drawdowns(lr_equity, "LR (L1)"),
+                                    use_container_width=True)
+                with tab_dd_xgb:
+                    st.plotly_chart(plots.plot_drawdowns(xgb_equity, "XGBoost"),
+                                    use_container_width=True)
             with col2:
                 st.subheader(T['pnl_sub'])
-                st.plotly_chart(plots.plot_trade_distribution(ml_trades, "ML Strategy"),
-                                use_container_width=True)
+                tab_pnl_lr, tab_pnl_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+                with tab_pnl_lr:
+                    st.plotly_chart(plots.plot_trade_distribution(lr_trades, "LR (L1)"),
+                                    use_container_width=True)
+                with tab_pnl_xgb:
+                    st.plotly_chart(plots.plot_trade_distribution(xgb_trades, "XGBoost"),
+                                    use_container_width=True)
 
             st.divider()
             st.header(T['trades_hdr'])
-            if len(ml_trades) > 0:
-                all_trades = ml_trades.copy().iloc[::-1].reset_index(drop=True)
-                all_trades['date']            = pd.to_datetime(all_trades['date']).dt.strftime('%Y-%m-%d')
-                all_trades['intraday_return'] = all_trades['intraday_return'].apply(lambda x: f"{x:.2%}")
-                all_trades['net_return']      = all_trades['net_return'].apply(lambda x: f"{x:.2%}")
-                all_trades['pnl']             = all_trades['pnl'].apply(lambda x: f"${x:.2f}")
-                st.dataframe(
-                    all_trades[['date', 'ticker', 'intraday_return', 'net_return', 'pnl']],
-                    use_container_width=True, hide_index=True, height=400
-                )
-            else:
-                st.info(T['no_trades_info'])
+            tab_tr_lr, tab_tr_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+            for tab, trades_df in [(tab_tr_lr, lr_trades), (tab_tr_xgb, xgb_trades)]:
+                with tab:
+                    if len(trades_df) > 0:
+                        t = trades_df.copy().iloc[::-1].reset_index(drop=True)
+                        t['date']            = pd.to_datetime(t['date']).dt.strftime('%Y-%m-%d')
+                        t['intraday_return'] = t['intraday_return'].apply(lambda x: f"{x:.2%}")
+                        t['net_return']      = t['net_return'].apply(lambda x: f"{x:.2%}")
+                        t['pnl']             = t['pnl'].apply(lambda x: f"${x:.2f}")
+                        st.dataframe(
+                            t[['date', 'ticker', 'intraday_return', 'net_return', 'pnl']],
+                            use_container_width=True, hide_index=True, height=400
+                        )
+                    else:
+                        st.info(T['no_trades_info'])
 
             st.divider()
             st.header(T['insights_hdr'])
@@ -248,41 +283,55 @@ def main():
             with st.expander(T['cal_expander'], expanded=False):
                 st.markdown(T['cal_body'].format(ml_thr=ML_PROB_THRESHOLD))
 
-            if oos_preds is not None:
-                cal_data = model.check_calibration_oos(oos_preds['proba'], oos_preds['actual'])
-            else:
-                cal_data = model.check_calibration(ref_model, ref_scaler,
-                                                   ref_train_data, feature_cols)
-            if cal_data:
-                col_cal, col_info = st.columns([2, 1])
-                with col_cal:
-                    st.plotly_chart(plots.plot_calibration_curve(cal_data),
-                                    use_container_width=True)
-                with col_info:
-                    ece          = cal_data['ece']
-                    brier        = cal_data['brier_score']
-                    base         = cal_data['base_rate']
-                    brier_random = base * (1 - base)
-                    st.metric("ECE",         f"{ece:.4f}",   help=T['cal_ece_help'])
-                    st.metric("Brier Score", f"{brier:.4f}",
-                              delta=f"{brier - brier_random:+.4f} vs random ({brier_random:.4f})",
-                              delta_color="inverse",
-                              help=T['cal_brier_help'])
-                    st.metric("Base Rate",   f"{base:.1%}",  help=T['cal_base_help'])
-                    st.divider()
-                    if ece < 0.03:
-                        st.success(T['cal_excellent'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
-                    elif ece < 0.05:
-                        st.success(T['cal_good'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
-                    elif ece < 0.08:
-                        st.warning(T['cal_moderate'].format(ece=ece))
+            tab_cal_lr, tab_cal_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+            for tab, oos_preds, ref_m, ref_s in [
+                (tab_cal_lr,  lr_oos_preds,  ref_lr_model,  ref_lr_scaler),
+                (tab_cal_xgb, xgb_oos_preds, ref_xgb_model, ref_xgb_scaler),
+            ]:
+                with tab:
+                    if oos_preds is not None:
+                        cal_data = model.check_calibration_oos(
+                            oos_preds['proba'], oos_preds['actual']
+                        )
                     else:
-                        st.error(T['cal_poor'].format(ece=ece))
+                        cal_data = model.check_calibration(
+                            ref_m, ref_s, ref_train_data, feature_cols
+                        )
+                    if cal_data:
+                        col_cal, col_info = st.columns([2, 1])
+                        with col_cal:
+                            st.plotly_chart(plots.plot_calibration_curve(cal_data),
+                                            use_container_width=True)
+                        with col_info:
+                            ece          = cal_data['ece']
+                            brier        = cal_data['brier_score']
+                            base         = cal_data['base_rate']
+                            brier_random = base * (1 - base)
+                            st.metric("ECE",         f"{ece:.4f}",   help=T['cal_ece_help'])
+                            st.metric("Brier Score", f"{brier:.4f}",
+                                      delta=f"{brier - brier_random:+.4f} vs random ({brier_random:.4f})",
+                                      delta_color="inverse",
+                                      help=T['cal_brier_help'])
+                            st.metric("Base Rate",   f"{base:.1%}",  help=T['cal_base_help'])
+                            st.divider()
+                            if ece < 0.03:
+                                st.success(T['cal_excellent'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
+                            elif ece < 0.05:
+                                st.success(T['cal_good'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
+                            elif ece < 0.08:
+                                st.warning(T['cal_moderate'].format(ece=ece))
+                            else:
+                                st.error(T['cal_poor'].format(ece=ece))
 
             st.subheader(T['fi_sub'])
             st.caption(T['fi_caption'].format(date=backtest_start))
-            st.dataframe(model.get_feature_importance(ref_model, feature_cols),
-                         use_container_width=True, hide_index=True)
+            tab_fi_lr, tab_fi_xgb = st.tabs(['LR (L1)', 'XGBoost'])
+            with tab_fi_lr:
+                st.dataframe(model.get_feature_importance(ref_lr_model, feature_cols),
+                             use_container_width=True, hide_index=True)
+            with tab_fi_xgb:
+                st.dataframe(model.get_feature_importance(ref_xgb_model, feature_cols),
+                             use_container_width=True, hide_index=True)
 
         except Exception as e:
             st.error(f"Error: {e}")
