@@ -55,11 +55,14 @@ def train_model(
     scaler = StandardScaler()
     X_train_scaled = scaler.fit_transform(X_train)
     
-    # Train model
+    # Train model — L1 penalty lets the model zero out irrelevant features automatically.
+    # liblinear is required for L1; C=0.5 provides moderate regularization strength.
     model = LogisticRegression(
+        penalty='l1',
+        C=0.5,
+        solver='liblinear',
         random_state=42,
         max_iter=1000,
-        solver='lbfgs'
     )
     model.fit(X_train_scaled, y_train)
     

@@ -104,7 +104,7 @@ def main():
     st.warning(T['surv_warning'])
 
     with st.expander(T['how_to_title'], expanded=False):
-        st.markdown(T['how_to_body'])
+        st.markdown(T['how_to_body'].format(ml_thr=ML_PROB_THRESHOLD))
 
     st.markdown(T['strategy_desc'].format(
         thr=return_threshold * 100,
@@ -244,9 +244,9 @@ def main():
             st.header(T['insights_hdr'])
 
             st.subheader(T['cal_sub'])
-            st.markdown(T['cal_desc'])
+            st.markdown(T['cal_desc'].format(ml_thr=ML_PROB_THRESHOLD))
             with st.expander(T['cal_expander'], expanded=False):
-                st.markdown(T['cal_body'])
+                st.markdown(T['cal_body'].format(ml_thr=ML_PROB_THRESHOLD))
 
             if oos_preds is not None:
                 cal_data = model.check_calibration_oos(oos_preds['proba'], oos_preds['actual'])
@@ -271,9 +271,9 @@ def main():
                     st.metric("Base Rate",   f"{base:.1%}",  help=T['cal_base_help'])
                     st.divider()
                     if ece < 0.03:
-                        st.success(T['cal_excellent'].format(ece=ece))
+                        st.success(T['cal_excellent'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
                     elif ece < 0.05:
-                        st.success(T['cal_good'].format(ece=ece))
+                        st.success(T['cal_good'].format(ece=ece, ml_thr=ML_PROB_THRESHOLD))
                     elif ece < 0.08:
                         st.warning(T['cal_moderate'].format(ece=ece))
                     else:

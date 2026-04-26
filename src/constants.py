@@ -12,7 +12,7 @@ INITIAL_CAPITAL = 100_000
 TRANSACTION_COST = 0.001  # 0.1% one-way, 0.2% round-trip
 
 # ML parameters
-ML_PROB_THRESHOLD = 0.50  # Logistic Regression natural boundary
+ML_PROB_THRESHOLD = 0.55  # Higher threshold filters to higher-confidence trades only
 
 # Walk-forward parameters
 TEST_WINDOW_MONTHS = 12

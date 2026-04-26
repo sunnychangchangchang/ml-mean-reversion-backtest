@@ -11,29 +11,31 @@ from typing import List
 def create_features(df: pd.DataFrame) -> pd.DataFrame:
     """
     Create features for all tickers in the dataset.
-    
+
     Computed columns (all backward-looking, no look-ahead bias):
     - return_1d: 1-day return (ML feature)
     - return_5d: 5-day return (signal trigger only — NOT an ML feature)
+    - return_10d: 10-day return (ML feature)
     - volatility_5d: 5-day rolling volatility of daily returns (ML feature)
     - volatility_10d: 10-day rolling volatility of daily returns (ML feature)
-    - volume_zscore: 20-day z-score of volume (ML feature)
     - rsi_14: 14-day RSI using Wilder's smoothing (ML feature)
     - distance_ma20: (Close - MA20) / MA20 (ML feature)
-    
+    - distance_ma200: (Close - MA200) / MA200 (ML feature)
+    - gap_open: (Open[t] - Close[t-1]) / Close[t-1] — overnight gap (ML feature)
+
     Args:
         df: DataFrame with OHLCV data, indexed by (ticker, Date)
-    
+
     Returns:
         DataFrame with added feature columns
     """
-    # Group by ticker to calculate features
     df = df.copy()
-    
+
     # Calculate returns
     df['return_1d'] = df.groupby('ticker')['Close'].pct_change(1)
     df['return_5d'] = df.groupby('ticker')['Close'].pct_change(5)
-    
+    df['return_10d'] = df.groupby('ticker')['Close'].pct_change(10)
+
     # Calculate volatility (rolling std of returns)
     df['volatility_5d'] = df.groupby('ticker')['return_1d'].transform(
         lambda x: x.rolling(window=5, min_periods=5).std()
@@ -41,25 +43,26 @@ def create_features(df: pd.DataFrame) -> pd.DataFrame:
     df['volatility_10d'] = df.groupby('ticker')['return_1d'].transform(
         lambda x: x.rolling(window=10, min_periods=10).std()
     )
-    
-    # Calculate volume z-score
-    df['volume_zscore'] = df.groupby('ticker')['Volume'].transform(
-        lambda x: (x - x.rolling(window=20, min_periods=20).mean()) /
-                  x.rolling(window=20, min_periods=20).std()
-    )
-    # Replace inf (std=0 edge case) with NaN so downstream dropna handles it cleanly
-    df['volume_zscore'] = df['volume_zscore'].replace([np.inf, -np.inf], np.nan)
-    
+
+    # Overnight gap: (Open[t] - Close[t-1]) / Close[t-1]
+    # Known at the start of day t; relevant because the trade executes Open→Close intraday.
+    prev_close = df.groupby('ticker')['Close'].shift(1)
+    df['gap_open'] = (df['Open'] - prev_close) / prev_close
+
     # Calculate RSI (14-day)
     df['rsi_14'] = df.groupby('ticker')['Close'].transform(
         lambda x: calculate_rsi(x, window=14)
     )
-    
-    # Calculate distance from MA20 (intermediate ma20 dropped immediately after use)
+
+    # Moving averages: MA20, MA50, MA200
     ma20 = df.groupby('ticker')['Close'].transform(
         lambda x: x.rolling(window=20, min_periods=20).mean()
     )
+    ma200 = df.groupby('ticker')['Close'].transform(
+        lambda x: x.rolling(window=200, min_periods=200).mean()
+    )
     df['distance_ma20'] = (df['Close'] - ma20) / ma20
+    df['distance_ma200'] = (df['Close'] - ma200) / ma200
 
     return df
 
@@ -137,9 +140,11 @@ def get_feature_columns() -> List[str]:
     # strategies non-independent and overstating ML's added value.
     return [
         'return_1d',
+        'return_10d',
         'volatility_5d',
         'volatility_10d',
-        'volume_zscore',
         'rsi_14',
         'distance_ma20',
+        'distance_ma200',
+        'gap_open',
     ]

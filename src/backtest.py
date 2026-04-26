@@ -360,10 +360,16 @@ def calculate_metrics(
     # All-period Sharpe is depressed by flat days (0 return lowers measured vol),
     # making low-exposure strategies look artificially good vs always-invested benchmarks.
     # Active-period Sharpe isolates the strategy's edge when it is actually deployed.
+    #
+    # Annualize by actual active-days-per-year, not 252. Using 252 would assume the
+    # strategy is always deployed and inflate Sharpe by sqrt(1 / exposure_ratio).
     active_returns = equity_df.loc[equity_df['daily_return'] != 0, 'daily_return'].dropna()
     if len(active_returns) > 1:
-        active_ann_return = (1 + active_returns.mean()) ** 252 - 1
-        active_vol = active_returns.std() * np.sqrt(252)
+        n_active = len(active_returns)
+        n_total = len(equity_df)
+        active_per_year = n_active * 252 / n_total  # avg active trading days per year
+        active_ann_return = (1 + active_returns.mean()) ** active_per_year - 1
+        active_vol = active_returns.std() * np.sqrt(active_per_year)
         active_sharpe = (active_ann_return - risk_free_rate) / active_vol if active_vol > 0 else 0.0
     else:
         active_sharpe = 0.0

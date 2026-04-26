@@ -89,9 +89,9 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
 
 ### Why some parameters are fixed
 
-- **ML Threshold = 0.50**: Logistic Regression is theoretically calibrated.
+- **ML Threshold = {ml_thr:.2f}**: Logistic Regression is theoretically calibrated.
   Our OOS calibration check confirms the model's probabilities are accurate —
-  0.50 is the correct break-even threshold. Tuning it on backtest results is overfitting.
+  {ml_thr:.2f} is the chosen threshold. Tuning it further on backtest results is overfitting.
 - **Transaction Cost = 0.1 %**: Realistic round-trip estimate for liquid large-cap US equities.
   It is not a free parameter.
 - **Test Window = 12 months**: Industry-standard walk-forward cadence.
@@ -153,7 +153,7 @@ market regimes. Winning in 6 of 8 folds is more credible than a big win in 2 fol
     'cal_desc': (
         'Evaluated on **out-of-sample walk-forward predictions** — '
         'the same predictions used in the backtest, not training data. '
-        'A well-calibrated model justifies using **0.50** as the threshold without tuning.'
+        'A well-calibrated model justifies the current threshold of **{ml_thr:.2f}**.'
     ),
     'cal_expander':         '📖 How to read calibration metrics',
     'cal_body': """\
@@ -170,8 +170,8 @@ and no threshold can be trusted.
 
 | ECE | Meaning |
 |-----|---------|
-| < 0.03 | Excellent — 0.50 threshold is well-justified |
-| 0.03 – 0.05 | Good — 0.50 is reasonable |
+| < 0.03 | Excellent — threshold {ml_thr:.2f} is well-justified |
+| 0.03 – 0.05 | Good — threshold {ml_thr:.2f} is reasonable |
 | 0.05 – 0.08 | Moderate — use with caution |
 | > 0.08 | Poor — threshold needs CV-based tuning |
 
@@ -182,8 +182,8 @@ If Brier ≈ random, the model has learned nothing.
     'cal_ece_help':         'Expected Calibration Error — lower is better.',
     'cal_brier_help':       'MSE of probability predictions. Lower is better.',
     'cal_base_help':        'Fraction of days where Close[t+1] > Open[t+1].',
-    'cal_excellent':        'ECE = {ece:.4f} — Excellent. Threshold 0.50 is well-justified.',
-    'cal_good':             'ECE = {ece:.4f} — Good. Threshold 0.50 is reasonable.',
+    'cal_excellent':        'ECE = {ece:.4f} — Excellent. Threshold {ml_thr:.2f} is well-justified.',
+    'cal_good':             'ECE = {ece:.4f} — Good. Threshold {ml_thr:.2f} is reasonable.',
     'cal_moderate':         'ECE = {ece:.4f} — Moderate. Proceed with caution.',
     'cal_poor':             'ECE = {ece:.4f} — Poor. Threshold needs CV-based tuning.',
     'fi_sub':               'Feature Importance',
@@ -282,9 +282,9 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
 
 ### 為什麼有些參數是固定的
 
-- **ML 門檻 = 0.50**：邏輯回歸本身就是校準的機器學習模型。
+- **ML 門檻 = {ml_thr:.2f}**：邏輯回歸本身就是校準的機器學習模型。
   我們的 OOS 校準測試確認了模型的機率輸出是準確的——
-  0.50 是理論上正確的損益兩平點。根據回測 Sharpe 調整門檻就是 overfitting。
+  {ml_thr:.2f} 是目前使用的門檻。根據回測 Sharpe 進一步調整門檻就是 overfitting。
 - **交易成本 = 0.1%**：大型美股的實際來回成本估算，不是可以優化的參數。
 - **測試窗口 = 12 個月**：業界標準的 walk-forward 步進節奏。
 
@@ -344,7 +344,7 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     'cal_desc': (
         '此結果使用 **walk-forward out-of-sample 預測**評估——'
         '與回測使用的是同一批預測，並非訓練資料。'
-        '校準良好代表使用 **0.50** 作為門檻是有依據的，無需人工調整。'
+        '校準良好代表目前使用的門檻 **{ml_thr:.2f}** 是有依據的。'
     ),
     'cal_expander':         '📖 如何解讀校準指標',
     'cal_body': """\
@@ -360,8 +360,8 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
 
 | ECE | 意義 |
 |-----|------|
-| < 0.03 | 優秀 — 0.50 門檻完全合理 |
-| 0.03 – 0.05 | 良好 — 0.50 可接受 |
+| < 0.03 | 優秀 — 門檻 {ml_thr:.2f} 完全合理 |
+| 0.03 – 0.05 | 良好 — 門檻 {ml_thr:.2f} 可接受 |
 | 0.05 – 0.08 | 一般 — 需謹慎 |
 | > 0.08 | 不佳 — 需透過訓練期 CV 選擇門檻 |
 
@@ -372,8 +372,8 @@ Walk-forward 驗證給你的是一條 out-of-sample equity curve。
     'cal_ece_help':         'Expected Calibration Error，越低越好。',
     'cal_brier_help':       '機率預測的均方誤差，越低越好。',
     'cal_base_help':        'Close[t+1] > Open[t+1] 的天數比例（訓練期）。',
-    'cal_excellent':        'ECE = {ece:.4f} — 優秀。使用門檻 0.50 完全合理。',
-    'cal_good':             'ECE = {ece:.4f} — 良好。門檻 0.50 可接受。',
+    'cal_excellent':        'ECE = {ece:.4f} — 優秀。使用門檻 {ml_thr:.2f} 完全合理。',
+    'cal_good':             'ECE = {ece:.4f} — 良好。門檻 {ml_thr:.2f} 可接受。',
     'cal_moderate':         'ECE = {ece:.4f} — 一般。請謹慎解讀。',
     'cal_poor':             'ECE = {ece:.4f} — 不佳。應透過訓練期 CV 重新選擇門檻。',
     'fi_sub':               '特徵重要性',
