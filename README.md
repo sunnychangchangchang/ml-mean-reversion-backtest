@@ -8,11 +8,11 @@ The strategy is deliberately simple: identify large 5-day selloffs, enter at the
 
 | Item | Implementation |
 | --- | --- |
-| Universe | Cached US large-cap research universe: `AAPL`, `MSFT`, `NVDA`, `TSLA`, `AMZN` |
+| Universe | Cached US large-cap research universe (default): `AAPL`, `MSFT`, `NVDA`, `TSLA`, `AMZN` (UI also supports `GOOGL`, `META`, `NFLX`) |
 | Hypothesis | Stocks with sharp short-term declines may mean-revert intraday on the next session |
 | Raw signal | `return_5d < -5%` by default |
 | ML target | `1` if `Close[t+1] > Open[t+1]`, otherwise `0` |
-| Models | LR (L1, C=0.5, liblinear) and XGBoost (max_depth=3, n_estimators=300) |
+| Models | LR (L1, C=0.5, liblinear) and XGBoost (max_depth=2, n_estimators=150, gamma=1.0, min_child_weight=5, reg_alpha=0.1) |
 | ML threshold | `0.55` — above the 0.50 natural boundary to filter for higher-confidence trades |
 | Execution | Signal at close of day `t`; enter `Open[t+1]`; exit `Close[t+1]` |
 | Cost model | `0.05%` one-way transaction cost (`0.10%` round-trip) |
